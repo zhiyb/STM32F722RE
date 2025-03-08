@@ -17,6 +17,7 @@ SECTIONS
   . = ALIGN(4);
   .isr_vector :
   {
+    __isr_vector_start = .;
     KEEP(*(.isr_vector)) /* Startup code */
     . = ALIGN(4);
   } >FLASH

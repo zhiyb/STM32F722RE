@@ -34,7 +34,7 @@ pub fn build(b: *std.Build) void {
 
     const exe = b.addExecutable(.{
         .name = "fw",
-        // .root_source_file = b.path("src/main.c"),
+        // .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -43,11 +43,17 @@ pub fn build(b: *std.Build) void {
     exe.addCSourceFiles(.{ .files = &.{
         "src/main.c",
         "src/startup_stm32c071xx.s",
+        "src/systick.c",
+        "src/usb_io.c",
     } });
 
     // C include paths
     exe.addIncludePath(b.path("cmsis"));
     exe.addIncludePath(b.path("inc"));
+
+    // Use atomic symbols from compiler_rt
+    // exe.bundle_compiler_rt = true;
+    // exe.linkSystemLibrary("atomic");
 
     // Keep debug and frame pointers for debugging
     exe.root_module.strip = false;
