@@ -106,6 +106,15 @@ SECTIONS
     __bss_end = .;
   } >RAM
 
+  /* USB RAM, uninitialised */
+  . = ALIGN(4);
+  .usbram :
+  {
+    KEEP(*(.usbram))
+    KEEP(*(.usbram*))
+    . = ALIGN(4);
+  } >USBRAM
+
 
   /* Remove information from the standard libraries */
   /DISCARD/ :

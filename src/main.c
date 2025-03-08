@@ -1,5 +1,5 @@
 #include <stdbool.h>
-#include "stm32c071xx.h"
+#include "stm32c0xx.h"
 #include "systick.h"
 #include "usb.h"
 #include "semihosting.h"
@@ -97,7 +97,10 @@ void main()
     uint32_t debouncing_ms = 0;
     bool debouncing = false;
     bool btn = false;
-    bool usb = false;
+    bool usb = true;
+
+    led_set(1, usb);
+    usb_connect(usb);
 
     for (;;) {
         uint32_t now_ms = systick_ms();
@@ -122,5 +125,7 @@ void main()
                 }
             }
         }
+
+        usb_process();
     }
 }

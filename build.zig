@@ -44,7 +44,12 @@ pub fn build(b: *std.Build) void {
         "src/main.c",
         "src/startup_stm32c071xx.s",
         "src/systick.c",
-        "src/usb_io.c",
+        "src/usb_hw.c",
+        "src/usb_hw_ep.c",
+        "src/usb_ep0_setup.c",
+        "src/usb_desc.c",
+    }, .flags = &.{
+        "-DSTM32C071xx",
     } });
 
     // C include paths
@@ -58,6 +63,8 @@ pub fn build(b: *std.Build) void {
     // Keep debug and frame pointers for debugging
     exe.root_module.strip = false;
     exe.root_module.omit_frame_pointer = false;
+    // LTO seems to cause compiler bugs
+    // exe.want_lto = true;
 
     exe.setLinkerScript(b.path("flash.ld"));
     exe.entry = .{ .symbol_name = "Reset_Handler" };
