@@ -13,7 +13,9 @@ void usb_hw_ep0_init();
 void usb_hw_ep_ctr_irq();
 bool usb_hw_act();
 void usb_hw_ep_process();
-void usb_hw_ep_tx(uint8_t ep, void *data, uint32_t len, bool status_out);
+void usb_hw_ep_tx(uint8_t ep, const void *data, uint32_t len, bool status_out);
+void usb_hw_ep_tx_stall(uint8_t ep);
+void usb_hw_set_address(uint16_t addr);
 
 void usb_ep0_setup(void *data, uint32_t len);
 

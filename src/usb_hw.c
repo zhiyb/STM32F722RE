@@ -2,18 +2,20 @@
 #include "stm32c0xx.h"
 #include "semihosting.h"
 
+static void usb_reset()
+{
+    USB_DRD_FS->DADDR = USB_DADDR_EF_Msk;
+    usb_hw_set_address(0);
+    usb_hw_buf_init();
+    usb_hw_ep0_init();
+}
+
 void usb_init()
 {
     // Initialise USB in device mode
     // Interrupts: correct transfer, reset
     USB_DRD_FS->CNTR = USB_CNTR_CTRM_Msk | USB_CNTR_RESETM_Msk;
-    // USB_DRD_FS->DADDR = 0;
-    USB_DRD_FS->DADDR = USB_DADDR_EF_Msk;
-
-    // usb_buf_init_rx(0);
-    usb_hw_buf_init();
-    usb_hw_ep0_init();
-
+    usb_reset();
     NVIC_EnableIRQ(USB_DRD_FS_IRQn);
 }
 
@@ -35,8 +37,7 @@ void USB_DRD_FS_IRQHandler()
     if (istr & USB_ISTR_RESET_Msk) {
         // USB reset
         clr &= ~USB_ISTR_RESET_Msk;
-        usb_hw_buf_init();
-        usb_hw_ep0_init();
+        usb_reset();
 
     } else if (istr & USB_ISTR_CTR_Msk) {
         // Transfer complete

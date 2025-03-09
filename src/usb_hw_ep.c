@@ -45,13 +45,18 @@ void usb_hw_ep0_init()
     USB_DRD_FS->CHEP0R = (0b01 << USB_CHEP_UTYPE_Pos) | ((~USB_DRD_FS->CHEP0R) & USB_CHEP_RX_STRX_Msk);
 }
 
-void usb_hw_ep_tx(uint8_t ep, void *data, uint32_t len, bool status_out)
+static uint8_t ep_to_ch(uint8_t ep)
 {
-    uint8_t ch = ep;    // TODO Not necessarily true
+    return ep;
+}
+
+void usb_hw_ep_tx(uint8_t ep, const void *data, uint32_t len, bool status_out)
+{
+    uint8_t ch = ep_to_ch(ep);
 
     // Configure SRAM buffer channel
-    uint32_t *src = data;
     uint32_t *dst = TXRXDB_PTR(usb_sram->chep[ch].TXRXBD);  // TODO Double buffering support?
+    const uint32_t *src = data;
     for (uint32_t i = 0; i < (len + 3) / 4; i++)
         dst[i] = src[i];
     usb_sram->chep[ch].TXRXBD = TXBD(len, dst);
@@ -59,6 +64,15 @@ void usb_hw_ep_tx(uint8_t ep, void *data, uint32_t len, bool status_out)
     // Enable endpoint channel for IN transfer
     uint32_t chep = CHEP(ch);
     CHEP(ch) = CHEP_MASK(chep) | (status_out ? USB_CHEP_KIND_Msk : 0) | ((~chep) & USB_CHEP_TX_STTX_Msk);
+}
+
+void usb_hw_ep_tx_stall(uint8_t ep)
+{
+    uint8_t ch = ep_to_ch(ep);
+
+    // Enable endpoint channel for STALL transfer
+    uint32_t chep = CHEP(ch);
+    CHEP(ch) = (CHEP_MASK(chep) | (chep & USB_CHEP_TX_STTX_Msk)) ^ (0b01 << USB_CHEP_TX_STTX_Pos);
 }
 
 #define EVENT_QUEUE_SIZE    4
@@ -82,21 +96,36 @@ static void event_push(event_t ev)
     event.write = (ev_write + 1) % EVENT_QUEUE_SIZE;
 }
 
+static volatile uint16_t usb_daddr = 0;
+
+void usb_hw_set_address(uint16_t addr)
+{
+    usb_daddr = addr;
+}
+
 void usb_hw_ep_ctr_irq()
 {
-    uint32_t ep0r = CHEP(0);
-    if (ep0r & USB_CHEP_VTRX_Msk) {
-        if (ep0r & USB_CHEP_SETUP_Msk) {
+    uint32_t chep = CHEP(0);
+    if (chep & USB_CHEP_VTRX_Msk) {
+        if (chep & USB_CHEP_SETUP_Msk) {
             // SETUP
             // Defer to main thread
             event_push((event_t){.ep = 0, .ev = EventSetup});
-            CHEP(0) = CHEP_MASK(ep0r) & ~USB_CHEP_VTRX_Msk;
+            CHEP(0) = CHEP_MASK(chep) & ~USB_CHEP_VTRX_Msk;
+        } else if (RXBD_COUNT(usb_sram->chep[0].RXTXBD) == 0) {
+            // 0-length data, STATUS OUT
+            // Wait for SETUP
+            CHEP(0) = (CHEP_MASK(chep) & ~USB_CHEP_VTRX_Msk) | ((~USB_DRD_FS->CHEP0R) & USB_CHEP_RX_STRX_Msk);
         } else {
             dbg_bkpt();
         }
-    } else if (ep0r & USB_CHEP_VTTX_Msk) {
+    } else if (chep & USB_CHEP_VTTX_Msk) {
         // IN complete, wait for SETUP/OUT
-        CHEP(0) = CHEP_MASK(ep0r) & ~USB_CHEP_VTTX_Msk;
+        CHEP(0) = (CHEP_MASK(chep) & ~USB_CHEP_VTTX_Msk) | ((~USB_DRD_FS->CHEP0R) & USB_CHEP_RX_STRX_Msk);
+        if (!(chep & USB_CHEP_KIND_Msk)) {
+            // STATUS IN, update device address
+            USB_DRD_FS->DADDR = USB_DADDR_EF_Msk | usb_daddr;
+        }
     } else {
         dbg_bkpt();
     }
