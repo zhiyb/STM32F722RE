@@ -44,3 +44,39 @@ const void *usb_hid_setup(setup_t *setup, uint32_t len)
         return (void *)-1;
     }
 }
+
+static union {
+    struct HidReportInput1 keyboard;
+    struct HidReportInput2 mouse;
+    struct HidReportInput3 vendor;
+} hid_report ALIGNED(4);
+
+typedef enum {
+    HidReportIdKeyboard = HID_REPORT_INPUT1_ID,
+    HidReportIdMouse = HID_REPORT_INPUT2_ID,
+    HidReportIdVendor = HID_REPORT_INPUT3_ID,
+} hid_report_id_t;
+
+void usb_hid_process(uint32_t now_ms)
+{
+    if (!usb_is_connected())
+        return;
+
+    // Move mouse down every 1 sec
+    static uint32_t last_ms = 0;
+    uint32_t delta_ms = now_ms - last_ms;
+    if (delta_ms < 1000)
+        return;
+    if (delta_ms >= 2000)
+        last_ms = now_ms;   // Discontinuity
+    else
+        last_ms += 1000;
+
+    // Create mouse event report
+    hid_report.mouse.ReportId = HidReportIdMouse;
+    hid_report.mouse.Payload[0] = 10;     // X +ve: right
+    hid_report.mouse.Payload[1] = 10;     // Y +ve: down
+    hid_report.mouse.Payload[2] = 0;      // Buttons
+    // dbg_puts("Mouse event\r\n");
+    usb_hw_ep_tx(UsbEpHid, &hid_report, sizeof(hid_report.mouse), false);
+}

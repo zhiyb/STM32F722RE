@@ -119,8 +119,8 @@ static const uint8_t *desc_string(uint8_t index, uint16_t *len)
         break;
     }
     default:
-        DBG_BKPT("Unknown string descriptor");
-        return 0;
+        // dbg_puts("Unknown string descriptor");
+        return (void *)-1;
     }
 
     *len = desc_string_buf.bLength;

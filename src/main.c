@@ -127,5 +127,6 @@ void main()
         }
 
         usb_process();
+        usb_hid_process(now_ms);
     }
 }

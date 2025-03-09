@@ -4,15 +4,23 @@
 
 // USB endpoint buffer allocation and management
 
+static const uint8_t map_ch_to_ep[8] = {0, 1,};
+
 typedef volatile struct {
     struct {
         uint32_t TXRXBD;
         uint32_t RXTXBD;
     } chep[8];
     struct {
+        // For enpoint 0 control
         // Shared between TX & RX
         uint32_t buf[64 / 4];
     } ch0;
+    struct {
+        // For endpoint 1 HID
+        // Shared between TX & RX
+        uint32_t buf[8 / 4];
+    } ch1;
 } usb_sram_t;
 
 // For size checking
@@ -21,6 +29,7 @@ static usb_sram_t * const usb_sram = (usb_sram_t *)USB_DRD_PMAADDR;
 
 static const uint16_t ch_buf_size[8] = {
     sizeof(usb_sram->ch0.buf),
+    sizeof(usb_sram->ch1.buf),
 };
 
 #define TXBD(count, addr) \
@@ -35,24 +44,38 @@ static const uint16_t ch_buf_size[8] = {
 #define CHEP(ch)            (*(&USB_DRD_FS->CHEP0R + ch))
 #define CHEP_MASK(val)      (((val) & 0x017f070f) | 0x7e800000)
 
+#define CHEP_RX_DISABLED(v) ((v) & USB_CHEP_RX_STRX_Msk)
+#define CHEP_RX_STALL(v)    (((v) & USB_CHEP_RX_STRX_Msk) ^ (0b01 << USB_CHEP_RX_STRX_Pos))
+#define CHEP_RX_NAK(v)      (((v) & USB_CHEP_RX_STRX_Msk) ^ (0b10 << USB_CHEP_RX_STRX_Pos))
+#define CHEP_RX_VALID(v)    ((~(v)) & USB_CHEP_RX_STRX_Msk)
+
+#define CHEP_TX_DISABLED(v) ((v) & USB_CHEP_TX_STTX_Msk)
+#define CHEP_TX_STALL(v)    (((v) & USB_CHEP_TX_STTX_Msk) ^ (0b01 << USB_CHEP_TX_STTX_Pos))
+#define CHEP_TX_NAK(v)      (((v) & USB_CHEP_TX_STTX_Msk) ^ (0b10 << USB_CHEP_TX_STTX_Pos))
+#define CHEP_TX_VALID(v)    ((~(v)) & USB_CHEP_TX_STTX_Msk)
+
 static volatile struct {
     const void *data;
     uint32_t len;
-} tx_req;
+} tx_req[8];
 
-void usb_hw_buf_init()
+void usb_hw_ep_init()
 {
     // Configure channel 0 for control endpoint 0
     usb_sram->chep[0].TXRXBD = TXBD(0, &usb_sram->ch0.buf[0]);
     usb_sram->chep[0].RXTXBD = RXBD(1, sizeof(usb_sram->ch0.buf) / 32 - 1, 0, &usb_sram->ch0.buf[0]);
-}
-
-void usb_hw_ep0_init()
-{
-    // Use channel 0 for control endpoint 0
     // Ready for SETUP
-    USB_DRD_FS->CHEP0R = (0b01 << USB_CHEP_UTYPE_Pos) | ((~USB_DRD_FS->CHEP0R) & USB_CHEP_RX_STRX_Msk);
-    tx_req.len = 0;
+    uint32_t chep = USB_DRD_FS->CHEP0R;
+    USB_DRD_FS->CHEP0R = (0b01 << USB_CHEP_UTYPE_Pos) | CHEP_RX_VALID(chep) | CHEP_TX_NAK(chep) | 0;
+    tx_req[0].len = 0;
+
+    // Configure channel 1 for HID interrupt endpoint 1
+    usb_sram->chep[1].TXRXBD = TXBD(1, &usb_sram->ch1.buf[0]);
+    usb_sram->chep[1].RXTXBD = RXBD(0, sizeof(usb_sram->ch0.buf) / 2, 0, &usb_sram->ch1.buf[0]);
+    // Send NAK for now
+    chep = USB_DRD_FS->CHEP1R;
+    USB_DRD_FS->CHEP1R = (0b11 << USB_CHEP_UTYPE_Pos) | CHEP_RX_NAK(chep) | CHEP_TX_NAK(chep) | 1;
+    tx_req[1].len = 0;
 }
 
 static uint8_t ep_to_ch(uint8_t ep)
@@ -66,11 +89,11 @@ void usb_hw_ep_tx(uint8_t ep, const void *data, uint32_t len, bool status_out)
     const uint16_t max_len = ch_buf_size[ch];
 
     if (len > max_len) {
-        tx_req.data = data + max_len;
-        tx_req.len = len - max_len;
+        tx_req[ep].data = data + max_len;
+        tx_req[ep].len = len - max_len;
         len = max_len;
     } else {
-        tx_req.len = 0;
+        tx_req[ep].len = 0;
     }
 
     // Configure SRAM buffer channel
@@ -82,7 +105,7 @@ void usb_hw_ep_tx(uint8_t ep, const void *data, uint32_t len, bool status_out)
 
     // Enable endpoint channel for IN transfer
     uint32_t chep = CHEP(ch);
-    CHEP(ch) = CHEP_MASK(chep) | (status_out ? USB_CHEP_KIND_Msk : 0) | ((~chep) & USB_CHEP_TX_STTX_Msk);
+    CHEP(ch) = CHEP_MASK(chep) | (status_out ? USB_CHEP_KIND_Msk : 0) | CHEP_TX_VALID(chep);
 }
 
 void usb_hw_ep_tx_stall(uint8_t ep)
@@ -91,7 +114,7 @@ void usb_hw_ep_tx_stall(uint8_t ep)
 
     // Enable endpoint channel for STALL transfer
     uint32_t chep = CHEP(ch);
-    CHEP(ch) = (CHEP_MASK(chep) | (chep & USB_CHEP_TX_STTX_Msk)) ^ (0b01 << USB_CHEP_TX_STTX_Pos);
+    CHEP(ch) = CHEP_MASK(chep) | CHEP_TX_STALL(chep);
 }
 
 #define EVENT_QUEUE_SIZE    4
@@ -124,37 +147,51 @@ void usb_hw_set_address(uint16_t addr)
 
 void usb_hw_ep_ctr_irq()
 {
-    uint8_t ep = 0;
-    uint8_t ch = ep_to_ch(ep);
-    uint32_t chep = CHEP(ch);
-    if (chep & USB_CHEP_VTRX_Msk) {
-        if (chep & USB_CHEP_SETUP_Msk) {
-            // SETUP
-            // Defer to main thread
-            event_push((event_t){.ep = ep, .ev = EventSetup});
-            CHEP(ch) = CHEP_MASK(chep);
-        } else if (TXRXBD_COUNT(usb_sram->chep[ch].RXTXBD) == 0) {
-            // 0-length data, STATUS OUT
-            // Wait for SETUP
-            CHEP(ch) = CHEP_MASK(chep) | ((~USB_DRD_FS->CHEP0R) & USB_CHEP_RX_STRX_Msk);
-        } else {
-            dbg_bkpt();
-        }
-    } else if (chep & USB_CHEP_VTTX_Msk) {
-        // IN complete
-        if (tx_req.len) {
-            // Continue with remaining data
-            usb_hw_ep_tx(ep, tx_req.data, tx_req.len, true);
-        } else {
-            // Wait for SETUP/OUT
-            CHEP(ch) = CHEP_MASK(chep) | ((~USB_DRD_FS->CHEP0R) & USB_CHEP_RX_STRX_Msk);
-            if (!(chep & USB_CHEP_KIND_Msk)) {
-                // STATUS IN, update device address
-                USB_DRD_FS->DADDR = USB_DADDR_EF_Msk | usb_daddr;
+    for (uint8_t ch = 0; ch < 8; ch++) {
+        uint32_t chep = CHEP(ch);
+        uint8_t ep = chep & 0x0f;
+        if (ch != 0 && ep == 0)
+            break;
+
+        switch (chep & USB_CHEP_UTYPE_Msk) {
+        case 0b01 << USB_CHEP_UTYPE_Pos:    // Control
+        case 0b11 << USB_CHEP_UTYPE_Pos:    // Interrupt
+            if (chep & USB_CHEP_VTRX_Msk) {
+                if (chep & USB_CHEP_SETUP_Msk) {
+                    // SETUP
+                    // Defer to main thread
+                    event_push((event_t){.ep = ep, .ev = EventSetup});
+                    CHEP(ch) = CHEP_MASK(chep);
+                } else if (TXRXBD_COUNT(usb_sram->chep[ch].RXTXBD) == 0) {
+                    // 0-length data, STATUS OUT
+                    // Wait for SETUP
+                    CHEP(ch) = CHEP_MASK(chep) | CHEP_RX_VALID(chep);
+                } else {
+                    dbg_bkpt();
+                }
+
+            } else if (chep & USB_CHEP_VTTX_Msk) {
+                // IN complete
+                if (tx_req[ep].len) {
+                    // Continue with remaining data
+                    usb_hw_ep_tx(ep, tx_req[ep].data, tx_req[ep].len, true);
+                } else {
+                    // Wait for SETUP/OUT
+                    CHEP(ch) = CHEP_MASK(chep) | CHEP_RX_VALID(chep);
+                    if (!(chep & USB_CHEP_KIND_Msk)) {
+                        // STATUS IN, update device address
+                        USB_DRD_FS->DADDR = USB_DADDR_EF_Msk | usb_daddr;
+                    }
+                }
+
+            } else if (chep & 0x7e808080) {
+                DBG_BKPT("Unhandled event");
             }
+            break;
+
+        default:
+            DBG_BKPT("Unknown endpoint type");
         }
-    } else {
-        dbg_bkpt();
     }
 }
 
