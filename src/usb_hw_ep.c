@@ -19,6 +19,10 @@ typedef volatile struct {
 static usb_sram_t _sram __attribute__((section(".usbram"))) __attribute__((used));
 static usb_sram_t * const usb_sram = (usb_sram_t *)USB_DRD_PMAADDR;
 
+static const uint16_t ch_buf_size[8] = {
+    sizeof(usb_sram->ch0.buf),
+};
+
 #define TXBD(count, addr) \
     (((count) << 16) | (0x0000ffff & ((uint32_t)(addr) - USB_DRD_PMAADDR)))
 #define RXBD(blsize, blocks, count, addr) \
@@ -26,10 +30,15 @@ static usb_sram_t * const usb_sram = (usb_sram_t *)USB_DRD_PMAADDR;
         (0x0000ffff & ((uint32_t)(addr) - USB_DRD_PMAADDR)))
 
 #define TXRXDB_PTR(bd)      ((uint32_t *)(((bd) & 0x0000ffff) + USB_DRD_PMAADDR))
-#define RXBD_COUNT(rxbd)    (((rxbd) >> 16) & 0x03ff)
+#define TXRXBD_COUNT(bd)    (((bd) >> 16) & 0x03ff)
 
 #define CHEP(ch)            (*(&USB_DRD_FS->CHEP0R + ch))
-#define CHEP_MASK(val)      (((val) & 0x017f070f) | 0x7e808080)
+#define CHEP_MASK(val)      (((val) & 0x017f070f) | 0x7e800000)
+
+static volatile struct {
+    const void *data;
+    uint32_t len;
+} tx_req;
 
 void usb_hw_buf_init()
 {
@@ -43,6 +52,7 @@ void usb_hw_ep0_init()
     // Use channel 0 for control endpoint 0
     // Ready for SETUP
     USB_DRD_FS->CHEP0R = (0b01 << USB_CHEP_UTYPE_Pos) | ((~USB_DRD_FS->CHEP0R) & USB_CHEP_RX_STRX_Msk);
+    tx_req.len = 0;
 }
 
 static uint8_t ep_to_ch(uint8_t ep)
@@ -53,6 +63,15 @@ static uint8_t ep_to_ch(uint8_t ep)
 void usb_hw_ep_tx(uint8_t ep, const void *data, uint32_t len, bool status_out)
 {
     uint8_t ch = ep_to_ch(ep);
+    const uint16_t max_len = ch_buf_size[ch];
+
+    if (len > max_len) {
+        tx_req.data = data + max_len;
+        tx_req.len = len - max_len;
+        len = max_len;
+    } else {
+        tx_req.len = 0;
+    }
 
     // Configure SRAM buffer channel
     uint32_t *dst = TXRXDB_PTR(usb_sram->chep[ch].TXRXBD);  // TODO Double buffering support?
@@ -105,26 +124,34 @@ void usb_hw_set_address(uint16_t addr)
 
 void usb_hw_ep_ctr_irq()
 {
-    uint32_t chep = CHEP(0);
+    uint8_t ep = 0;
+    uint8_t ch = ep_to_ch(ep);
+    uint32_t chep = CHEP(ch);
     if (chep & USB_CHEP_VTRX_Msk) {
         if (chep & USB_CHEP_SETUP_Msk) {
             // SETUP
             // Defer to main thread
-            event_push((event_t){.ep = 0, .ev = EventSetup});
-            CHEP(0) = CHEP_MASK(chep) & ~USB_CHEP_VTRX_Msk;
-        } else if (RXBD_COUNT(usb_sram->chep[0].RXTXBD) == 0) {
+            event_push((event_t){.ep = ep, .ev = EventSetup});
+            CHEP(ch) = CHEP_MASK(chep);
+        } else if (TXRXBD_COUNT(usb_sram->chep[ch].RXTXBD) == 0) {
             // 0-length data, STATUS OUT
             // Wait for SETUP
-            CHEP(0) = (CHEP_MASK(chep) & ~USB_CHEP_VTRX_Msk) | ((~USB_DRD_FS->CHEP0R) & USB_CHEP_RX_STRX_Msk);
+            CHEP(ch) = CHEP_MASK(chep) | ((~USB_DRD_FS->CHEP0R) & USB_CHEP_RX_STRX_Msk);
         } else {
             dbg_bkpt();
         }
     } else if (chep & USB_CHEP_VTTX_Msk) {
-        // IN complete, wait for SETUP/OUT
-        CHEP(0) = (CHEP_MASK(chep) & ~USB_CHEP_VTTX_Msk) | ((~USB_DRD_FS->CHEP0R) & USB_CHEP_RX_STRX_Msk);
-        if (!(chep & USB_CHEP_KIND_Msk)) {
-            // STATUS IN, update device address
-            USB_DRD_FS->DADDR = USB_DADDR_EF_Msk | usb_daddr;
+        // IN complete
+        if (tx_req.len) {
+            // Continue with remaining data
+            usb_hw_ep_tx(ep, tx_req.data, tx_req.len, true);
+        } else {
+            // Wait for SETUP/OUT
+            CHEP(ch) = CHEP_MASK(chep) | ((~USB_DRD_FS->CHEP0R) & USB_CHEP_RX_STRX_Msk);
+            if (!(chep & USB_CHEP_KIND_Msk)) {
+                // STATUS IN, update device address
+                USB_DRD_FS->DADDR = USB_DADDR_EF_Msk | usb_daddr;
+            }
         }
     } else {
         dbg_bkpt();
@@ -145,7 +172,7 @@ void usb_hw_ep_process()
             // Copy to local buffer for easy access
             uint32_t buf[64 / 4];
             uint32_t *data = &usb_sram->ch0.buf[0];
-            uint32_t len = RXBD_COUNT(usb_sram->chep[0].RXTXBD);
+            uint32_t len = TXRXBD_COUNT(usb_sram->chep[0].RXTXBD);
             for (uint32_t i = 0; i < (len + 3) / 4; i++)
                 buf[i] = data[i];
             usb_ep0_setup(&buf[0], len);

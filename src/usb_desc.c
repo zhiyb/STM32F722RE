@@ -1,9 +1,6 @@
 #include "usb.h"
+#include "usb_desc_hid.h"
 #include "semihosting.h"
-
-#define PACKED          __attribute__((packed))
-#define ALIGNED(v)      __attribute__((aligned(v)))
-#define ARRAY_SIZE(a)   (sizeof(a) / sizeof(a[0]))
 
 #define DESC_TYPE_DEVICE                        1
 #define DESC_TYPE_CONFIGURATION                 2
@@ -154,6 +151,7 @@ static const struct PACKED {
 
     struct PACKED {
         desc_interface_t interface;
+        desc_hid_t hid;
         desc_endpoint_t endpoint;
     } hid;
 
@@ -173,7 +171,7 @@ static const struct PACKED {
         .interface = {
             .bLength = sizeof(desc_interface_t),
             .bDescriptorType = DESC_TYPE_INTERFACE,
-            .bInterfaceNumber = 0,
+            .bInterfaceNumber = UsbInterfaceHid,
             .bAlternateSetting = 0,
             .bNumEndpoints = 1,
             .bInterfaceClass = 0x03,
@@ -181,6 +179,7 @@ static const struct PACKED {
             .bInterfaceProtocol = 0x01, // Keyboard
             .iInterface = 0,
         },
+        .hid = desc_hid,
         .endpoint = {
             .bLength = sizeof(desc_endpoint_t),
             .bDescriptorType = DESC_TYPE_ENDPOINT,

@@ -1,0 +1,76 @@
+[[settings]]
+# packingInBytes = 1
+optimize = true
+outputformat = 'Cpp'
+cppDescriptorName = 'hidReportDescriptor'
+
+[[applicationCollection]]
+usage = ['Generic Desktop', 'Keyboard']
+
+    [[applicationCollection.inputReport]]
+
+        # Special buttons
+        #
+        # N.B. Windows applies special buttons only to subsequent keys, so
+        # must appear in report beforehand.
+        [[applicationCollection.inputReport.variableItem]]
+        usageRange = ['Keyboard/Keypad', 'Keyboard LeftControl', 'Keyboard Right GUI']
+        logicalValueRange = [0, 1]
+
+        # Regular Buttons
+        [[applicationCollection.inputReport.arrayItem]]
+        usageRange = ['Keyboard/Keypad', 'ErrorRollOver', 'Keyboard Application']
+        count = 6
+
+    # LEDS
+    # [[applicationCollection.outputReport]]
+
+    #     [[applicationCollection.outputReport.variableItem]]
+    #     usageRange = ['LED', 'Num Lock', 'Kana']
+    #     logicalValueRange = [0, 1]
+
+[[applicationCollection]]
+usage = ['Generic Desktop', 'Mouse']
+
+    [[applicationCollection.inputReport]]
+
+        [[applicationCollection.inputReport.physicalCollection]]
+        usage = ['Generic Desktop', 'Pointer']
+
+            [[applicationCollection.inputReport.physicalCollection.variableItem]]
+            usage = ['Generic Desktop', 'X']
+            sizeInBits = 8
+            logicalValueRange = 'maxSignedSizeRange'
+            reportFlags = ['relative']
+
+            [[applicationCollection.inputReport.physicalCollection.variableItem]]
+            usage = ['Generic Desktop', 'Y']
+            sizeInBits = 8
+            logicalValueRange = 'maxSignedSizeRange'
+            reportFlags = ['relative']
+
+            [[applicationCollection.inputReport.physicalCollection.variableItem]]
+            usageRange = ['Button', 'Button 1', 'Button 3']
+            logicalValueRange = [0, 1]
+
+
+
+[[usagePage]]
+id = 0xff00
+name = 'Vendor Usage Page 1'
+
+    [[usagePage.usage]]
+    id = 0xff
+    name = 'Vendor Usage 1'
+    types = ['CA', 'DV']
+
+[[applicationCollection]]
+usage = ['Vendor Usage Page 1', 'Vendor Usage 1']
+
+    [[applicationCollection.inputReport]]
+
+        [[applicationCollection.inputReport.variableItem]]
+        usage = ['Vendor Usage Page 1', 'Vendor Usage 1']
+        logicalValueRange = 'maxUnsignedSizeRange'
+        sizeInBits = 8
+        count = 7
