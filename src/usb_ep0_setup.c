@@ -21,7 +21,7 @@ typedef struct PACKED {
 
 static ret_buf_t ret_buf ALIGNED(4);
 
-static inline const void *usb_ep0_setup_standard_req(setup_t *setup, uint32_t len)
+static inline const void *usb_ep0_setup_standard_req(setup_t *setup)
 {
     // Table 9-3 Standard Device Requests
     switch (setup->bRequest) {
@@ -30,7 +30,7 @@ static inline const void *usb_ep0_setup_standard_req(setup_t *setup, uint32_t le
         usb_hw_set_address(setup->wValue);
         return 0;
 
-    case REQ_GET_DESCRIPTOR:
+    case REQ_GET_DESCRIPTOR: {
         // setup->bmRequestType == 0x80
         uint8_t type = setup->wValue >> 8;
         uint8_t index = setup->wValue;
@@ -43,6 +43,7 @@ static inline const void *usb_ep0_setup_standard_req(setup_t *setup, uint32_t le
         // DATA IN
         setup->wLength = len < setup->wLength ? len : setup->wLength;
         return desc;
+    }
 
     case REQ_SET_CONFIGURATION:
         // setup->bmRequestType == 0x00
@@ -65,19 +66,13 @@ static inline const void *usb_ep0_setup_standard_req(setup_t *setup, uint32_t le
     }
 }
 
-void usb_ep0_setup(void *data, uint32_t len)
+void usb_ep0_setup(setup_t *setup)
 {
-    if (len < 8) {
-        DBG_BKPT("Invalid setup data");
-        return;
-    }
-
     void *ret = (void *)-1;
-    setup_t *setup = data;
     switch (setup->bmRequestType & 0x7f) {
     case 0x00:
         // Standard device request
-        ret = usb_ep0_setup_standard_req(setup, len);
+        ret = usb_ep0_setup_standard_req(setup);
         break;
 
     case 0x01:
@@ -86,7 +81,10 @@ void usb_ep0_setup(void *data, uint32_t len)
         // Class interface request
         switch (setup->wIndex) {
         case UsbInterfaceHid:
-            ret = usb_hid_setup(setup, len);
+            ret = usb_hid_setup(setup);
+            break;
+        case UsbInterfaceCDCComm:
+            ret = usb_cdc_setup(setup);
             break;
         default:
             DBG_BKPT("Unknown Interface");
@@ -100,11 +98,11 @@ void usb_ep0_setup(void *data, uint32_t len)
     if (ret == (void *)-1) {
         // STALL
         usb_hw_ep_tx_stall(0);
-    } else if (setup->wLength == 0) {
-        // STATUS IN
-        usb_hw_ep_tx(0, 0, 0, false);
-    } else {
+    } else if ((setup->bmRequestType & 0x80) != 0 && setup->wLength != 0) {
         // DATA IN
         usb_hw_ep_tx(0, ret, setup->wLength, true);
+    } else {
+        // STATUS IN
+        usb_hw_ep_tx(0, 0, 0, false);
     }
 }

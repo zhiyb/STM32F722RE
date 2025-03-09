@@ -26,7 +26,7 @@ typedef struct PACKED {
 static const desc_hid_t desc_hid = {
     .bLength = sizeof(desc_hid),
     .bDescriptorType = DESC_TYPE_HID,
-    .bcdHID = 0x0101,
+    .bcdHID = 0x0111,
     .bCountryCode = 0,
     .bNumDescriptors = 1,
     .report = {

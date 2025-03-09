@@ -195,7 +195,7 @@ static const struct PACKED {
         .bLength = sizeof(desc_configuration_t),
         .bDescriptorType = DESC_TYPE_CONFIGURATION,
         .wTotalLength = sizeof(desc_configuration),
-        .bNumInterfaces = 1,
+        .bNumInterfaces = UsbNumInterfaces,
         .bConfigurationValue = 1,
         .iConfiguration = 0,
         .bmAttributes = 0xe0,

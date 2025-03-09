@@ -8,7 +8,7 @@ static inline void dbg_bkpt()
 static inline void dbg_puts(const char *str)
 {
     register int cmd asm ("r0") = 0x04;   // SYS_WRITE0
-    register void *data asm ("r1") = str;
+    register const void *data asm ("r1") = str;
     asm volatile ("bkpt 0xab"
         : "=r" (cmd)
         : "r" (cmd), "r" (data)

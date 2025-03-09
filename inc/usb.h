@@ -43,9 +43,11 @@ void usb_hw_ep_tx(uint8_t ep, const void *data, uint32_t len, bool status_out);
 void usb_hw_ep_tx_stall(uint8_t ep);
 void usb_hw_set_address(uint16_t addr);
 
-void usb_ep0_setup(void *data, uint32_t len);
+void usb_ep0_setup(setup_t *setup);
 
 const uint8_t *usb_desc_get(uint8_t type, uint8_t index, uint16_t *len);
 
-const void *usb_hid_setup(setup_t *setup, uint32_t len);
+const void *usb_hid_setup(setup_t *setup);
 void usb_hid_process(uint32_t now_ms);
+
+const void *usb_cdc_setup(setup_t *setup);

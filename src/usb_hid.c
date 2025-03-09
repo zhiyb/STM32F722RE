@@ -14,7 +14,7 @@
 #define REQ_CLASS_SET_IDLE        0x0a
 #define REQ_CLASS_SET_PROTOCOL    0x0b
 
-const void *usb_hid_setup(setup_t *setup, uint32_t len)
+const void *usb_hid_setup(setup_t *setup)
 {
     switch (setup->bRequest) {
     case REQ_STD_GET_DESCRIPTOR: {
@@ -39,6 +39,7 @@ const void *usb_hid_setup(setup_t *setup, uint32_t len)
         // TODO();
         return 0;
     }
+
     default:
         DBG_BKPT("Unknown request");
         return (void *)-1;

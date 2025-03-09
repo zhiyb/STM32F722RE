@@ -49,6 +49,7 @@ pub fn build(b: *std.Build) void {
         "src/usb_ep0_setup.c",
         "src/usb_desc.c",
         "src/usb_hid.c",
+        "src/usb_cdc.c",
     }, .flags = &.{
         "-DSTM32C071xx",
     } });
