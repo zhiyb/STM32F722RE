@@ -18,8 +18,8 @@ typedef volatile struct {
     } ch0;
     struct {
         // For endpoint 1 HID
-        // Shared between TX & RX
-        uint32_t buf[8 / 4];
+        uint32_t tx_buf[8 / 4];
+        uint32_t rx_buf[0 / 4];
     } ch1;
 } usb_sram_t;
 
@@ -27,9 +27,10 @@ typedef volatile struct {
 static usb_sram_t _sram __attribute__((section(".usbram"))) __attribute__((used));
 static usb_sram_t * const usb_sram = (usb_sram_t *)USB_DRD_PMAADDR;
 
-static const uint16_t ch_buf_size[8] = {
-    sizeof(usb_sram->ch0.buf),
-    sizeof(usb_sram->ch1.buf),
+static const uint16_t ch_buf_size[8][2] = {
+    // IN (TX), OUT (RX)
+    {sizeof(usb_sram->ch0.buf), sizeof(usb_sram->ch0.buf)},
+    {sizeof(usb_sram->ch1.tx_buf), sizeof(usb_sram->ch1.rx_buf)},
 };
 
 #define TXBD(count, addr) \
@@ -63,15 +64,15 @@ void usb_hw_ep_init()
 {
     // Configure channel 0 for control endpoint 0
     usb_sram->chep[0].TXRXBD = TXBD(0, &usb_sram->ch0.buf[0]);
-    usb_sram->chep[0].RXTXBD = RXBD(1, sizeof(usb_sram->ch0.buf) / 32 - 1, 0, &usb_sram->ch0.buf[0]);
+    usb_sram->chep[0].RXTXBD = RXBD(1, ch_buf_size[0][1] / 32 - 1, 0, &usb_sram->ch0.buf[0]);
     // Ready for SETUP
     uint32_t chep = USB_DRD_FS->CHEP0R;
     USB_DRD_FS->CHEP0R = (0b01 << USB_CHEP_UTYPE_Pos) | CHEP_RX_VALID(chep) | CHEP_TX_NAK(chep) | 0;
     tx_req[0].len = 0;
 
     // Configure channel 1 for HID interrupt endpoint 1
-    usb_sram->chep[1].TXRXBD = TXBD(1, &usb_sram->ch1.buf[0]);
-    usb_sram->chep[1].RXTXBD = RXBD(0, sizeof(usb_sram->ch0.buf) / 2, 0, &usb_sram->ch1.buf[0]);
+    usb_sram->chep[1].TXRXBD = TXBD(1, &usb_sram->ch1.tx_buf[0]);
+    usb_sram->chep[1].RXTXBD = RXBD(0, ch_buf_size[1][1] / 2, 0, &usb_sram->ch1.rx_buf[0]);
     // Send NAK for now
     chep = USB_DRD_FS->CHEP1R;
     USB_DRD_FS->CHEP1R = (0b11 << USB_CHEP_UTYPE_Pos) | CHEP_RX_NAK(chep) | CHEP_TX_NAK(chep) | 1;
@@ -86,7 +87,7 @@ static uint8_t ep_to_ch(uint8_t ep)
 void usb_hw_ep_tx(uint8_t ep, const void *data, uint32_t len, bool status_out)
 {
     uint8_t ch = ep_to_ch(ep);
-    const uint16_t max_len = ch_buf_size[ch];
+    const uint16_t max_len = ch_buf_size[ch][0];
 
     if (len > max_len) {
         tx_req[ep].data = data + max_len;

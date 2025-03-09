@@ -10,6 +10,9 @@
 #define DESC_TYPE_DEVICE_QUALIFIER              6
 #define DESC_TYPE_OTHER_SPEED_CONFIGURATION     7
 #define DESC_TYPE_INTERFACE_POWER               8
+#define DESC_TYPE_OTG                           9
+#define DESC_TYPE_DEBUG                         10
+#define DESC_TYPE_INTERFACE_ASSOCIATION         11
 
 typedef struct PACKED {
     uint8_t bLength;
@@ -38,6 +41,17 @@ typedef struct PACKED {
     uint8_t bmAttributes;
     uint8_t bMaxPower;
 } desc_configuration_t;
+
+typedef struct PACKED {
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint8_t bFirstInterface;
+    uint8_t bInterfaceCount;
+    uint8_t bFunctionClass;
+    uint8_t bFunctionSubClass;
+    uint8_t bFunctionProtocol;
+    uint8_t iFunction;
+} desc_interface_association_t;
 
 typedef struct PACKED {
     uint8_t bLength;
@@ -120,7 +134,7 @@ static const uint8_t *desc_string(uint8_t index, uint16_t *len)
     }
     default:
         // dbg_puts("Unknown string descriptor");
-        return (void *)-1;
+        return 0;
     }
 
     *len = desc_string_buf.bLength;
@@ -205,10 +219,13 @@ const uint8_t *usb_desc_get(uint8_t type, uint8_t index, uint16_t *len)
         return 0;
     case DESC_TYPE_STRING:
         return desc_string(index, len);
-    case 10:
-        // Debug descriptor?
+    case DESC_TYPE_OTG:
+    case DESC_TYPE_DEBUG:
+    case DESC_TYPE_INTERFACE_ASSOCIATION:
+        // Not supported
         return 0;
     default:
         DBG_BKPT("Unknown descriptor type");
+        return 0;
     }
 }
