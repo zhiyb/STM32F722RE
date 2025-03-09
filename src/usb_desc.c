@@ -1,5 +1,6 @@
 #include "usb.h"
 #include "usb_desc_hid.h"
+#include "usb_desc_cdc.h"
 #include "semihosting.h"
 
 #define DESC_TYPE_DEVICE                        1
@@ -100,6 +101,7 @@ typedef enum {
     String_iManufacturer,
     String_iProduct,
     String_iSerialNumber,
+    String_CDC,
     NumStrings,
 } desc_string_index_t;
 
@@ -132,6 +134,11 @@ static const uint8_t *desc_string(uint8_t index, uint16_t *len)
         desc_string_copy(str, sizeof(str) - 1);
         break;
     }
+    case String_CDC: {
+        static const uint8_t str[] = "(String_CDC)";
+        desc_string_copy(str, sizeof(str) - 1);
+        break;
+    }
     default:
         // dbg_puts("Unknown string descriptor");
         return 0;
@@ -147,9 +154,9 @@ static const desc_device_t desc_device ALIGNED(4) = {
     .bLength = sizeof(desc_device),
     .bDescriptorType = DESC_TYPE_DEVICE,
     .bcdUSB = 0x0200,
-    .bDeviceClass = 0,      // Interface Class Defined Device
-    .bDeviceSubClass = 0,
-    .bDeviceProtocol = 0,
+    .bDeviceClass = 0xef,   // Miscellaneous Device
+    .bDeviceSubClass = 2,
+    .bDeviceProtocol = 1,   // Interface Association
     .bMaxPacketSize0 = 64,
     .idVendor = 0x0483,     // STMicroelectronics
     .idProduct = 0x5750,
@@ -168,6 +175,20 @@ static const struct PACKED {
         desc_hid_t hid;
         desc_endpoint_t endpoint;
     } hid;
+
+    struct PACKED {
+        desc_interface_association_t iassoc;
+        struct PACKED {
+            desc_interface_t interface;
+            desc_cdc_t cdc;
+            desc_endpoint_t endpoint;
+        } comm;
+        struct PACKED {
+            desc_interface_t interface;
+            desc_endpoint_t endpoint_out;
+            desc_endpoint_t endpoint_in;
+        } data;
+    } cdc;
 
 } desc_configuration ALIGNED(4) = {
     .configuration = {
@@ -197,10 +218,74 @@ static const struct PACKED {
         .endpoint = {
             .bLength = sizeof(desc_endpoint_t),
             .bDescriptorType = DESC_TYPE_ENDPOINT,
-            .bEndpointAddress = 0x81,   // IN, endpoint 1
+            .bEndpointAddress = 0x80 | UsbEpHid,    // IN
             .bmAttributes = 0b11,       // Interrupt
             .wMaxPacketSize = 8,
             .bInterval = 10,            // 10ms polling interval
+        },
+    },
+
+    .cdc = {
+        .iassoc = {
+            .bLength = sizeof(desc_interface_association_t),
+            .bDescriptorType = DESC_TYPE_INTERFACE_ASSOCIATION,
+            .bFirstInterface = UsbInterfaceCDCComm,
+            .bInterfaceCount = 2,
+            .bFunctionClass = 2,        // Communications
+            .bFunctionSubClass = 2,     // Abstract (modem)
+            .bFunctionProtocol = 1,     // AT-commands (v.25ter)
+            .iFunction = String_CDC,
+        },
+        .comm = {
+            .interface = {
+                .bLength = sizeof(desc_interface_t),
+                .bDescriptorType = DESC_TYPE_INTERFACE,
+                .bInterfaceNumber = UsbInterfaceCDCComm,
+                .bAlternateSetting = 0,
+                .bNumEndpoints = 1,
+                .bInterfaceClass = 2,       // Communications
+                .bInterfaceSubClass = 2,    // Abstract (modem)
+                .bInterfaceProtocol = 1,    // AT-commands (v.25ter)
+                .iInterface = String_CDC,
+            },
+            .cdc = desc_cdc_class,
+            .endpoint = {
+                .bLength = sizeof(desc_endpoint_t),
+                .bDescriptorType = DESC_TYPE_ENDPOINT,
+                .bEndpointAddress = 0x80 | UsbEpCDCComm,    // IN
+                .bmAttributes = 0b11,       // Interrupt
+                .wMaxPacketSize = 8,
+                .bInterval = 16,            // 16ms polling interval
+            },
+        },
+        .data = {
+            .interface = {
+                .bLength = sizeof(desc_interface_t),
+                .bDescriptorType = DESC_TYPE_INTERFACE,
+                .bInterfaceNumber = UsbInterfaceCDCData,
+                .bAlternateSetting = 0,
+                .bNumEndpoints = 2,
+                .bInterfaceClass = 10,      // CDC Data
+                .bInterfaceSubClass = 0,
+                .bInterfaceProtocol = 0,
+                .iInterface = String_CDC,
+            },
+            .endpoint_out = {
+                .bLength = sizeof(desc_endpoint_t),
+                .bDescriptorType = DESC_TYPE_ENDPOINT,
+                .bEndpointAddress = 0x00 | UsbEpCDCData,    // OUT
+                .bmAttributes = 0b10,       // Bulk
+                .wMaxPacketSize = 64,
+                .bInterval = 0,
+            },
+            .endpoint_in = {
+                .bLength = sizeof(desc_endpoint_t),
+                .bDescriptorType = DESC_TYPE_ENDPOINT,
+                .bEndpointAddress = 0x80 | UsbEpCDCData,    // IN
+                .bmAttributes = 0b10,       // Bulk
+                .wMaxPacketSize = 64,
+                .bInterval = 0,
+            },
         },
     },
 };

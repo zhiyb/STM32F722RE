@@ -88,6 +88,8 @@ void usb_ep0_setup(void *data, uint32_t len)
         case UsbInterfaceHid:
             ret = usb_hid_setup(setup, len);
             break;
+        default:
+            DBG_BKPT("Unknown Interface");
         }
         break;
 

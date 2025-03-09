@@ -9,12 +9,16 @@
 
 typedef enum {
     UsbInterfaceHid,
+    UsbInterfaceCDCComm,
+    UsbInterfaceCDCData,
     UsbNumInterfaces,
 } usb_interface_id_t;
 
 typedef enum {
     UsbEp0Ctrl = 0,
     UsbEpHid,
+    UsbEpCDCComm,
+    UsbEpCDCData,
 } usb_endpoint_t;
 
 typedef struct PACKED {
