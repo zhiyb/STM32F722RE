@@ -121,10 +121,10 @@ bool usb_cdc_data_out(uint32_t *data, uint16_t len)
     uint16_t wrptr = cdc_fifo.txrx[Rx].wrptr;
     uint16_t rdptr = cdc_fifo.txrx[Rx].rdptr;
     // uint16_t avail = (FIFO_BUF_SIZE * 2 - 1 + rdptr - wrptr) % FIFO_BUF_SIZE;
-    uint16_t avail = (rdptr - wrptr - 1) % FIFO_BUF_SIZE;
-    if (len > avail)
-        dbg_puts("FIFO overrun!\r\n");
-    len = len > avail ? avail : len;
+    uint16_t avail = (uint16_t)(rdptr - wrptr - 1) % FIFO_BUF_SIZE;
+    // if (len > avail)
+    //     dbg_puts("FIFO overrun!\r\n");
+    len = len < avail ? len : avail;
     for (uint16_t i = 0; i < (len + 3) / 4; i++) {
         uint32_t v = data[i];
         for (uint8_t ofs = 0; ofs < 4; ofs++) {
@@ -144,7 +144,7 @@ uint16_t usb_cdc_rx_available()
     uint16_t wrptr = cdc_fifo.txrx[Rx].wrptr;
     uint16_t rdptr = cdc_fifo.txrx[Rx].rdptr;
     // uint16_t avail = (FIFO_BUF_SIZE + wrptr - rdptr) % FIFO_BUF_SIZE;
-    uint16_t avail = (wrptr - rdptr) % FIFO_BUF_SIZE;
+    uint16_t avail = (uint16_t)(wrptr - rdptr) % FIFO_BUF_SIZE;
     return avail;
 }
 
@@ -163,9 +163,9 @@ void usb_cdc_data_in()
     uint16_t wrptr = cdc_fifo.txrx[Tx].wrptr;
     uint16_t rdptr = cdc_fifo.txrx[Tx].rdptr;
     // uint16_t avail = (FIFO_BUF_SIZE + wrptr - rdptr) % FIFO_BUF_SIZE;
-    uint16_t avail = (wrptr - rdptr) % FIFO_BUF_SIZE;
-    uint16_t eob = FIFO_BUF_SIZE - rdptr;
-    avail = avail < wrptr ? avail : wrptr;
+    uint16_t avail = (uint16_t)(wrptr - rdptr) % FIFO_BUF_SIZE;
+    // uint16_t eob = FIFO_BUF_SIZE - rdptr;
+    // avail = avail < eob ? avail : eob;
     if (avail) {
         uint16_t len = 0;
         uint32_t *buf = usb_hw_ep_tx_buffer(UsbEpCDCData, &len);
@@ -192,7 +192,7 @@ uint16_t usb_cdc_tx_free()
     uint16_t wrptr = cdc_fifo.txrx[Tx].wrptr;
     uint16_t rdptr = cdc_fifo.txrx[Tx].rdptr;
     // uint16_t avail = (FIFO_BUF_SIZE * 2 - 1 + rdptr - wrptr) % FIFO_BUF_SIZE;
-    uint16_t avail = (rdptr - wrptr - 1) % FIFO_BUF_SIZE;
+    uint16_t avail = (uint16_t)(rdptr - wrptr - 1) % FIFO_BUF_SIZE;
     return avail;
 }
 

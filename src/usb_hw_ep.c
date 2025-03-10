@@ -2,6 +2,28 @@
 #include "stm32c0xx.h"
 #include "semihosting.h"
 
+#define TXBD(count, addr) \
+    (((count) << 16) | (0x0000ffff & ((uint32_t)(addr) - USB_DRD_PMAADDR)))
+#define RXBD(blsize, blocks, count, addr) \
+    (((blsize) << 31) | ((blocks) << 26) | ((count) << 16) | \
+        (0x0000ffff & ((uint32_t)(addr) - USB_DRD_PMAADDR)))
+
+#define TXRXDB_PTR(bd)      ((uint32_t *)(((bd) & 0x0000ffff) + USB_DRD_PMAADDR))
+#define TXRXBD_COUNT(bd)    (((bd) >> 16) & 0x03ff)
+
+#define CHEP(ch)            (*(&USB_DRD_FS->CHEP0R + ch))
+#define CHEP_MASK(val)      (((val) & 0x017f070f) | 0x7e800000)
+
+#define CHEP_RX_DISABLED(v) ((v) & USB_CHEP_RX_STRX_Msk)
+#define CHEP_RX_STALL(v)    (((v) & USB_CHEP_RX_STRX_Msk) ^ (0b01 << USB_CHEP_RX_STRX_Pos))
+#define CHEP_RX_NAK(v)      (((v) & USB_CHEP_RX_STRX_Msk) ^ (0b10 << USB_CHEP_RX_STRX_Pos))
+#define CHEP_RX_VALID(v)    ((~(v)) & USB_CHEP_RX_STRX_Msk)
+
+#define CHEP_TX_DISABLED(v) ((v) & USB_CHEP_TX_STTX_Msk)
+#define CHEP_TX_STALL(v)    (((v) & USB_CHEP_TX_STTX_Msk) ^ (0b01 << USB_CHEP_TX_STTX_Pos))
+#define CHEP_TX_NAK(v)      (((v) & USB_CHEP_TX_STTX_Msk) ^ (0b10 << USB_CHEP_TX_STTX_Pos))
+#define CHEP_TX_VALID(v)    ((~(v)) & USB_CHEP_TX_STTX_Msk)
+
 // USB endpoint buffer allocation and management
 
 static const uint8_t map_ch_to_ep[8] = {0, 1,};
@@ -58,30 +80,39 @@ static volatile struct {
     uint8_t data[64];   // DATA OUT buffer
 } ctrl_buf ALIGNED(4);
 
-#define TXBD(count, addr) \
-    (((count) << 16) | (0x0000ffff & ((uint32_t)(addr) - USB_DRD_PMAADDR)))
-#define RXBD(blsize, blocks, count, addr) \
-    (((blsize) << 31) | ((blocks) << 26) | ((count) << 16) | \
-        (0x0000ffff & ((uint32_t)(addr) - USB_DRD_PMAADDR)))
+// Event queue for deferring IRQ events to main thread
+#define EVENT_QUEUE_SIZE    4
 
-#define TXRXDB_PTR(bd)      ((uint32_t *)(((bd) & 0x0000ffff) + USB_DRD_PMAADDR))
-#define TXRXBD_COUNT(bd)    (((bd) >> 16) & 0x03ff)
+typedef enum {
+    EventSetup  = 0x01,
+    EventOut    = 0x02,
+    EventIn     = 0x04,
+} event_ev_t;
 
-#define CHEP(ch)            (*(&USB_DRD_FS->CHEP0R + ch))
-#define CHEP_MASK(val)      (((val) & 0x017f070f) | 0x7e800000)
+typedef struct {
+    uint8_t ev;
+    uint8_t ep;
+    uint8_t ch;
+} event_t;
 
-#define CHEP_RX_DISABLED(v) ((v) & USB_CHEP_RX_STRX_Msk)
-#define CHEP_RX_STALL(v)    (((v) & USB_CHEP_RX_STRX_Msk) ^ (0b01 << USB_CHEP_RX_STRX_Pos))
-#define CHEP_RX_NAK(v)      (((v) & USB_CHEP_RX_STRX_Msk) ^ (0b10 << USB_CHEP_RX_STRX_Pos))
-#define CHEP_RX_VALID(v)    ((~(v)) & USB_CHEP_RX_STRX_Msk)
+typedef struct {
+    uint8_t event[2][8];
+    uint8_t wrptr;
+} hw_event_t;
 
-#define CHEP_TX_DISABLED(v) ((v) & USB_CHEP_TX_STTX_Msk)
-#define CHEP_TX_STALL(v)    (((v) & USB_CHEP_TX_STTX_Msk) ^ (0b01 << USB_CHEP_TX_STTX_Pos))
-#define CHEP_TX_NAK(v)      (((v) & USB_CHEP_TX_STTX_Msk) ^ (0b10 << USB_CHEP_TX_STTX_Pos))
-#define CHEP_TX_VALID(v)    ((~(v)) & USB_CHEP_TX_STTX_Msk)
+static volatile hw_event_t hw_event;
+
+static void event_push_irq(event_ev_t ev, uint8_t ch)
+{
+    uint8_t wrptr = hw_event.wrptr;
+    hw_event.event[wrptr][ch] |= ev;
+}
 
 void usb_hw_ep_init()
 {
+    // Clear pending events
+    hw_event = (hw_event_t){};
+
     // Configure channel 0 for control endpoint 0
     uint8_t ch = 0;
     usb_sram->chep[ch].TXRXBD = TXBD(0, &usb_sram->ch0.buf[0]);
@@ -128,7 +159,7 @@ static inline uint8_t ep_to_ch(uint8_t ep)
 void usb_hw_ep_tx(uint8_t ep, const void *data, uint32_t len, bool status_out)
 {
     uint8_t ch = ep_to_ch(ep);
-    const uint16_t max_len = ch_buf_size[ch][Rx];
+    const uint16_t max_len = ch_buf_size[ch][Tx];
 
     if (len > max_len) {
         txrx_req[ch].data = (void *)data + max_len;
@@ -185,32 +216,6 @@ usb_endpoint_status_t usb_hw_ep_rx_status(uint8_t ep)
 }
 
 
-// Event queue for deferring IRQ events to main thread
-#define EVENT_QUEUE_SIZE    4
-
-typedef enum {EventIdle, EventSetup, EventOut, EventIn} event_ev_t;
-
-typedef struct {
-    uint8_t ev;
-    uint8_t ep;
-    uint8_t ch;
-} event_t;
-
-static volatile struct {
-    event_t queue[EVENT_QUEUE_SIZE];
-    uint32_t read, write;
-} usb_hw_event;
-
-static void event_push(event_t ev)
-{
-    uint32_t ev_write = usb_hw_event.write;
-    usb_hw_event.queue[ev_write] = ev;
-    ev_write = (ev_write + 1) % EVENT_QUEUE_SIZE;
-    if (ev_write == usb_hw_event.read)
-        DBG_BKPT("Insufficient queue length");
-    usb_hw_event.write = ev_write;
-}
-
 static volatile uint16_t usb_daddr = 0;
 
 void usb_hw_set_address(uint16_t addr)
@@ -261,7 +266,7 @@ void usb_hw_ep_ctr_irq()
 
                         } else {
                             // SETUP complete, defer to main thread
-                            event_push((event_t){.ev = EventSetup, .ep = ep, .ch = ch});
+                            event_push_irq(EventSetup, ch);
                             CHEP(ch) = CHEP_MASK(chep);
                         }
                     }
@@ -293,7 +298,7 @@ void usb_hw_ep_ctr_irq()
 
                 if (buf_len == 0) {
                     // DATA OUT complete, defer to main thread
-                    event_push((event_t){.ev = ev, .ep = ep, .ch = ch});
+                    event_push_irq(ev, ch);
                 }
 
                 // Keep NAK, wait for main thread
@@ -303,7 +308,7 @@ void usb_hw_ep_ctr_irq()
 
             case 0b00 << USB_CHEP_UTYPE_Pos:    // Bulk
                 // Defer to main thread
-                event_push((event_t){.ev = EventOut, .ep = ep, .ch = ch});
+                event_push_irq(EventOut, ch);
                 CHEP(ch) = CHEP_MASK(chep);
                 break;
 
@@ -340,7 +345,7 @@ void usb_hw_ep_ctr_irq()
 
             case 0b00 << USB_CHEP_UTYPE_Pos:    // Bulk
                 // Defer to main thread
-                event_push((event_t){.ev = EventIn, .ep = ep, .ch = ch});
+                event_push_irq(EventIn, ch);
                 CHEP(ch) = CHEP_MASK(chep);
                 break;
 
@@ -356,45 +361,40 @@ void usb_hw_ep_ctr_irq()
 
 void usb_hw_ep_process()
 {
-    uint32_t ev_write = usb_hw_event.write;
-    uint32_t ev_read = usb_hw_event.read;
-    while (ev_write != ev_read) {
-        event_t ev = usb_hw_event.queue[ev_read];
-        ev_read = (ev_read + 1) % EVENT_QUEUE_SIZE;
-        usb_hw_event.read = ev_read;
+    // Swap event bitmap buffer
+    uint8_t rdptr = hw_event.wrptr;
+    hw_event.wrptr = !rdptr;
+    for (uint8_t ch = 0; ch < 8; ch++) {
+        uint8_t ev = hw_event.event[rdptr][ch];
+        if (ev) {
+            hw_event.event[rdptr][ch] = 0;
+            uint32_t chep = CHEP(ch);
+            uint8_t ep = chep & 0x0f;
 
-        switch (ev.ev) {
-        case EventSetup:
-            usb_ep0_setup(&ctrl_buf.setup);
-            break;
-
-        case EventOut: {
-            uint32_t bd = usb_sram->chep[ev.ch].RXTXBD;
-            uint32_t *data = TXRXDB_PTR(bd);
-            uint16_t len = TXRXBD_COUNT(bd);
-            bool rx_valid = false;
-            if (ev.ep == UsbEpCDCData) {
-                rx_valid = usb_cdc_data_out(data, len);
-            } else {
-                DBG_BKPT("Unknown endpoint");
+            if (ev & EventSetup) {
+                usb_ep0_setup(&ctrl_buf.setup);
             }
-            uint32_t chep = CHEP(ev.ch);
-            CHEP(ev.ch) = CHEP_MASK(chep) | (rx_valid ? CHEP_RX_VALID(chep) : 0);
-            break;
-        }
 
-        case EventIn: {
-            uint32_t bd = usb_sram->chep[ev.ch].TXRXBD;
-            if (ev.ep == UsbEpCDCData) {
-                usb_cdc_data_in();
-            } else {
-                DBG_BKPT("Unknown endpoint");
+            if (ev & EventOut) {
+                uint32_t bd = usb_sram->chep[ch].RXTXBD;
+                uint32_t *data = TXRXDB_PTR(bd);
+                uint16_t len = TXRXBD_COUNT(bd);
+                bool rx_valid = false;
+                if (ep == UsbEpCDCData) {
+                    rx_valid = usb_cdc_data_out(data, len);
+                } else {
+                    DBG_BKPT("Unknown endpoint");
+                }
+                CHEP(ch) = CHEP_MASK(chep) | (rx_valid ? CHEP_RX_VALID(chep) : 0);
             }
-            break;
-        }
 
-        default:
-            DBG_BKPT("Unknown event");
+            if (ev & EventIn) {
+                if (ep == UsbEpCDCData) {
+                    usb_cdc_data_in();
+                } else {
+                    DBG_BKPT("Unknown endpoint");
+                }
+            }
         }
     }
 }
