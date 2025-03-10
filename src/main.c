@@ -134,6 +134,27 @@ void main()
         uint16_t avail = cdc_rx_avail < cdc_tx_free ? cdc_rx_avail : cdc_tx_free;
         for (uint16_t i = 0; i < avail; i++) {
             uint8_t v = usb_cdc_rx_read();
+
+            // Mouse control test
+            int8_t x = 0, y = 0, d = 8;
+            switch (v) {
+            case 'w':
+                y = -d;
+                break;
+            case 's':
+                y = d;
+                break;
+            case 'a':
+                x = -d;
+                break;
+            case 'd':
+                x = d;
+                break;
+            }
+            if (x != 0 || y != 0)
+                usb_hid_mouse_move(x, y);
+
+            // Serial port echo test
             if (v >= 'a' && v < 'z')
                 v++;    // Test
             usb_cdc_tx_write(v);

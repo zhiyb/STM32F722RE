@@ -58,8 +58,12 @@ typedef enum {
     HidReportIdVendor = HID_REPORT_INPUT3_ID,
 } hid_report_id_t;
 
+static bool periodic_move = true;
+
 void usb_hid_process(uint32_t now_ms)
 {
+    if (!periodic_move)
+        return;
     if (!usb_is_connected())
         return;
 
@@ -75,9 +79,22 @@ void usb_hid_process(uint32_t now_ms)
 
     // Create mouse event report
     hid_report.mouse.ReportId = HidReportIdMouse;
-    hid_report.mouse.Payload[0] = 10;     // X +ve: right
-    hid_report.mouse.Payload[1] = 10;     // Y +ve: down
-    hid_report.mouse.Payload[2] = 0;      // Buttons
+    hid_report.mouse.Payload[0] = 10;   // X +ve: right
+    hid_report.mouse.Payload[1] = 10;   // Y +ve: down
+    hid_report.mouse.Payload[2] = 0;    // Buttons
     // dbg_puts("Mouse event\r\n");
-    usb_hw_ep_tx(UsbEpHid, &hid_report, sizeof(hid_report.mouse), false);
+    if (usb_hw_ep_tx_status(UsbEpHid) != UsbEpValid)
+        usb_hw_ep_tx(UsbEpHid, &hid_report, sizeof(hid_report.mouse), false);
+}
+
+void usb_hid_mouse_move(int8_t x, int8_t y)
+{
+    periodic_move = false;
+    // Create mouse event report
+    hid_report.mouse.ReportId = HidReportIdMouse;
+    hid_report.mouse.Payload[0] = x;    // X +ve: right
+    hid_report.mouse.Payload[1] = y;    // Y +ve: down
+    hid_report.mouse.Payload[2] = 0;    // Buttons
+    if (usb_hw_ep_tx_status(UsbEpHid) != UsbEpValid)
+        usb_hw_ep_tx(UsbEpHid, &hid_report, sizeof(hid_report.mouse), false);
 }

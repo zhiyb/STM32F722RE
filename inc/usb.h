@@ -60,6 +60,7 @@ const uint8_t *usb_desc_get(uint8_t type, uint8_t index, uint16_t *len);
 
 const void *usb_hid_setup(setup_t *setup);
 void usb_hid_process(uint32_t now_ms);
+void usb_hid_mouse_move(int8_t x, int8_t y);
 
 void usb_cdc_init();
 const void *usb_cdc_setup(setup_t *setup);
