@@ -128,5 +128,15 @@ void main()
 
         usb_process();
         usb_hid_process(now_ms);
+
+        uint16_t cdc_rx_avail = usb_cdc_rx_available();
+        uint16_t cdc_tx_free = usb_cdc_tx_free();
+        uint16_t avail = cdc_rx_avail < cdc_tx_free ? cdc_rx_avail : cdc_tx_free;
+        for (uint16_t i = 0; i < avail; i++) {
+            uint8_t v = usb_cdc_rx_read();
+            if (v >= 'a' && v < 'z')
+                v++;    // Test
+            usb_cdc_tx_write(v);
+        }
     }
 }

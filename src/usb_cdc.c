@@ -79,8 +79,131 @@ const void *usb_cdc_setup(setup_t *setup)
         return 0;
     }
 
+    case REQ_CLASS_SEND_BREAK: {
+        uint16_t duration_ms = setup->wValue;
+        return 0;
+    }
+
     default:
         DBG_BKPT("Unknown request");
         return (void *)-1;
     }
+}
+
+enum {Tx = 0, Rx = 1};
+
+// CDC data FIFO buffers, must be power-of-2
+#define FIFO_BUF_SIZE   512
+
+static struct {
+    struct {
+        volatile uint8_t buf[FIFO_BUF_SIZE];
+        volatile uint16_t rdptr;
+        volatile uint16_t wrptr;
+    } txrx[2];
+} cdc_fifo;
+
+void usb_cdc_init()
+{
+    cdc_fifo.txrx[Rx].rdptr = 0;
+    cdc_fifo.txrx[Rx].wrptr = 0;
+    cdc_fifo.txrx[Tx].rdptr = 0;
+    cdc_fifo.txrx[Tx].wrptr = 0;
+}
+
+bool usb_cdc_data_out(uint32_t *data, uint16_t len)
+{
+    // USB OUT i.e. RX
+    // Copy to FIFO buffer
+    // The USB SRAM must be addressed using 32-bit accesses
+    // Also: There is no support for unaligned accesses on the Cortex-M0+ processor
+    // TODO: DMA?
+    uint16_t wrptr = cdc_fifo.txrx[Rx].wrptr;
+    uint16_t rdptr = cdc_fifo.txrx[Rx].rdptr;
+    // uint16_t avail = (FIFO_BUF_SIZE * 2 - 1 + rdptr - wrptr) % FIFO_BUF_SIZE;
+    uint16_t avail = (rdptr - wrptr - 1) % FIFO_BUF_SIZE;
+    if (len > avail)
+        dbg_puts("FIFO overrun!\r\n");
+    len = len > avail ? avail : len;
+    for (uint16_t i = 0; i < (len + 3) / 4; i++) {
+        uint32_t v = data[i];
+        for (uint8_t ofs = 0; ofs < 4; ofs++) {
+            if (i * 4 + ofs < len) {
+                cdc_fifo.txrx[Rx].buf[wrptr] = v;
+                wrptr = (wrptr + 1) % FIFO_BUF_SIZE;
+            }
+            v >>= 8;
+        }
+    }
+    cdc_fifo.txrx[Rx].wrptr = wrptr;
+    return true;
+}
+
+uint16_t usb_cdc_rx_available()
+{
+    uint16_t wrptr = cdc_fifo.txrx[Rx].wrptr;
+    uint16_t rdptr = cdc_fifo.txrx[Rx].rdptr;
+    // uint16_t avail = (FIFO_BUF_SIZE + wrptr - rdptr) % FIFO_BUF_SIZE;
+    uint16_t avail = (wrptr - rdptr) % FIFO_BUF_SIZE;
+    return avail;
+}
+
+uint8_t usb_cdc_rx_read()
+{
+    uint16_t rdptr = cdc_fifo.txrx[Rx].rdptr;
+    uint8_t v = cdc_fifo.txrx[Rx].buf[rdptr];
+    rdptr = (rdptr + 1) % FIFO_BUF_SIZE;
+    cdc_fifo.txrx[Rx].rdptr = rdptr;
+    return v;
+}
+
+void usb_cdc_data_in()
+{
+    // Find available TX data from rdptr to wrptr or end of buffer
+    uint16_t wrptr = cdc_fifo.txrx[Tx].wrptr;
+    uint16_t rdptr = cdc_fifo.txrx[Tx].rdptr;
+    // uint16_t avail = (FIFO_BUF_SIZE + wrptr - rdptr) % FIFO_BUF_SIZE;
+    uint16_t avail = (wrptr - rdptr) % FIFO_BUF_SIZE;
+    uint16_t eob = FIFO_BUF_SIZE - rdptr;
+    avail = avail < wrptr ? avail : wrptr;
+    if (avail) {
+        uint16_t len = 0;
+        uint32_t *buf = usb_hw_ep_tx_buffer(UsbEpCDCData, &len);
+        avail = avail < len ? avail : len;
+        // Copy to USB SRAM
+        for (uint16_t i = 0; i < (avail + 3) / 4; i++) {
+            uint32_t v = 0;
+            for (uint8_t ofs = 0; ofs < 4; ofs++) {
+                v >>= 8;
+                if (i * 4 + ofs < avail) {
+                    v |= (uint32_t)cdc_fifo.txrx[Tx].buf[rdptr] << 24;
+                    rdptr = (rdptr + 1) % FIFO_BUF_SIZE;
+                }
+            }
+            buf[i] = v;
+        }
+        cdc_fifo.txrx[Tx].rdptr = rdptr;
+        usb_hw_ep_tx(UsbEpCDCData, buf, avail, false);
+    }
+}
+
+uint16_t usb_cdc_tx_free()
+{
+    uint16_t wrptr = cdc_fifo.txrx[Tx].wrptr;
+    uint16_t rdptr = cdc_fifo.txrx[Tx].rdptr;
+    // uint16_t avail = (FIFO_BUF_SIZE * 2 - 1 + rdptr - wrptr) % FIFO_BUF_SIZE;
+    uint16_t avail = (rdptr - wrptr - 1) % FIFO_BUF_SIZE;
+    return avail;
+}
+
+void usb_cdc_tx_write(uint8_t v)
+{
+    uint16_t wrptr = cdc_fifo.txrx[Tx].wrptr;
+    cdc_fifo.txrx[Tx].buf[wrptr] = v;
+    wrptr = (wrptr + 1) % FIFO_BUF_SIZE;
+    cdc_fifo.txrx[Tx].wrptr = wrptr;
+
+    // If endpoint TX is free, start sending data
+    if (usb_hw_ep_tx_status(UsbEpCDCData) != UsbEpValid)
+        usb_cdc_data_in();
 }

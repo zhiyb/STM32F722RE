@@ -7,6 +7,7 @@ static void usb_reset()
     USB_DRD_FS->DADDR = USB_DADDR_EF_Msk;
     usb_hw_set_address(0);
     usb_hw_ep_init();
+    usb_cdc_init();
 }
 
 void usb_init()
