@@ -58,10 +58,11 @@ typedef enum {
     HidReportIdVendor = HID_REPORT_INPUT3_ID,
 } hid_report_id_t;
 
-static bool periodic_move = true;
+// static bool periodic_move = true;
 
 void usb_hid_process(uint32_t now_ms)
 {
+#if 0
     if (!periodic_move)
         return;
     if (!usb_is_connected())
@@ -85,11 +86,12 @@ void usb_hid_process(uint32_t now_ms)
     // dbg_puts("Mouse event\r\n");
     if (usb_hw_ep_tx_status(UsbEpHid) != UsbEpValid)
         usb_hw_ep_tx(UsbEpHid, &hid_report, sizeof(hid_report.mouse), false);
+#endif
 }
 
 void usb_hid_mouse_move(int8_t x, int8_t y)
 {
-    periodic_move = false;
+    // periodic_move = false;
     // Create mouse event report
     hid_report.mouse.ReportId = HidReportIdMouse;
     hid_report.mouse.Payload[0] = x;    // X +ve: right
