@@ -143,6 +143,13 @@ void main()
         usb_process();
         usb_hid_process(now_ms);
 
+        if (uart_rx_available() && usb_cdc_tx_free())
+            usb_cdc_tx_write(uart_rx());
+
+        if (usb_cdc_rx_available() && uart_tx_free())
+            uart_tx(usb_cdc_rx_read());
+
+#if 0
         uint16_t cdc_rx_avail = usb_cdc_rx_available();
         uint16_t cdc_tx_free = usb_cdc_tx_free();
         uint16_t avail = cdc_rx_avail < cdc_tx_free ? cdc_rx_avail : cdc_tx_free;
@@ -179,5 +186,6 @@ void main()
 
         if (uart_rx_available())
             usb_cdc_tx_write(uart_rx());
+#endif
     }
 }
