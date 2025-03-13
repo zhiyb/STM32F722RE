@@ -11,6 +11,8 @@ typedef enum {
     UsbInterfaceHid,
     UsbInterfaceCDCComm,
     UsbInterfaceCDCData,
+    UsbInterfaceBtHci,
+    UsbInterfaceBtVoice,
     UsbNumInterfaces,
 } usb_interface_id_t;
 
@@ -19,6 +21,10 @@ typedef enum {
     UsbEpHid,
     UsbEpCDCComm,
     UsbEpCDCData,
+    UsbEpBtHciEvents,
+    UsbEpBtACLData,
+    UsbEpBtVoice,
+    UsbNumEndpoints,
 } usb_endpoint_t;
 
 typedef enum {

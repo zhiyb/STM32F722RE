@@ -53,6 +53,21 @@ typedef volatile struct {
         uint32_t rx_buf[64 / 4];
         uint32_t tx_buf[64 / 4];
     } ch3;
+    struct {
+        // For endpoint 4 BT HCI Events
+        uint32_t rx_buf[0 / 4];
+        uint32_t tx_buf[64 / 4];
+    } ch4;
+    struct {
+        // For endpoint 5 BT ACL Data
+        uint32_t rx_buf[64 / 4];
+        uint32_t tx_buf[64 / 4];
+    } ch5;
+    struct {
+        // For endpoint 6 BT Voice
+        uint32_t rx_buf[64 / 4];
+        uint32_t tx_buf[64 / 4];
+    } ch6;
 } usb_sram_t;
 
 // For size checking
@@ -67,6 +82,9 @@ static const uint16_t ch_buf_size[8][2] = {
     {sizeof(usb_sram->ch1.tx_buf), sizeof(usb_sram->ch1.rx_buf)},
     {sizeof(usb_sram->ch2.tx_buf), sizeof(usb_sram->ch2.rx_buf)},
     {sizeof(usb_sram->ch3.tx_buf), sizeof(usb_sram->ch3.rx_buf)},
+    {sizeof(usb_sram->ch4.tx_buf), sizeof(usb_sram->ch4.rx_buf)},
+    {sizeof(usb_sram->ch5.tx_buf), sizeof(usb_sram->ch5.rx_buf)},
+    {sizeof(usb_sram->ch6.tx_buf), sizeof(usb_sram->ch6.rx_buf)},
 };
 
 // In-progress TX/RX requests
@@ -149,6 +167,33 @@ void usb_hw_ep_init()
     // OUT ready
     chep = CHEP(ch);
     CHEP(ch) = (0b00 << USB_CHEP_UTYPE_Pos) | CHEP_RX_VALID(chep) | CHEP_TX_NAK(chep) | UsbEpCDCData;
+
+    // Configure channel 4 for BT HCL Events interrupt IN endpoint
+    ch = 4;
+    usb_sram->chep[ch].TXRXBD = TXBD(0, &usb_sram->ch4.tx_buf[0]);
+    usb_sram->chep[ch].RXTXBD = RXBD(1, ch_buf_size[ch][Rx] / 32 - 1, 0, &usb_sram->ch4.rx_buf[0]);
+    txrx_req[ch].len = 0;
+    // Send NAK for now
+    chep = CHEP(ch);
+    CHEP(ch) = (0b11 << USB_CHEP_UTYPE_Pos) | CHEP_RX_NAK(chep) | CHEP_TX_NAK(chep) | UsbEpBtHciEvents;
+
+    // Configure channel 5 for BT ACL Data bulk endpoint
+    ch = 5;
+    usb_sram->chep[ch].TXRXBD = TXBD(0, &usb_sram->ch5.tx_buf[0]);
+    usb_sram->chep[ch].RXTXBD = RXBD(1, ch_buf_size[ch][Rx] / 32 - 1, 0, &usb_sram->ch5.rx_buf[0]);
+    txrx_req[ch].len = 0;
+    // Send NAK for now
+    chep = CHEP(ch);
+    CHEP(ch) = (0b00 << USB_CHEP_UTYPE_Pos) | CHEP_RX_NAK(chep) | CHEP_TX_NAK(chep) | UsbEpBtACLData;
+
+    // Configure channel 6 for BT Voice isochronous endpoint
+    ch = 6;
+    usb_sram->chep[ch].TXRXBD = TXBD(0, &usb_sram->ch6.tx_buf[0]);
+    usb_sram->chep[ch].RXTXBD = RXBD(1, ch_buf_size[ch][Rx] / 32 - 1, 0, &usb_sram->ch6.rx_buf[0]);
+    txrx_req[ch].len = 0;
+    // Send NAK for now
+    chep = CHEP(ch);
+    CHEP(ch) = (0b00 << USB_CHEP_UTYPE_Pos) | CHEP_RX_NAK(chep) | CHEP_TX_NAK(chep) | UsbEpBtVoice;
 }
 
 static inline uint8_t ep_to_ch(uint8_t ep)
