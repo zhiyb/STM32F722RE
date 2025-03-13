@@ -3,6 +3,7 @@
 #include "systick.h"
 #include "uart.c"
 #include "usb.h"
+#include "bt_hci_h4.h"
 #include "semihosting.h"
 
 #define RCC_CFGR_SW_HSI48   (0b010 << RCC_CFGR_SW_Pos)
@@ -143,11 +144,18 @@ void main()
         usb_process();
         usb_hid_process(now_ms);
 
+#if 1
+        if (uart_rx_available())
+            bt_hci_h4_rx(uart_rx());
+#endif
+
+#if 0
         if (uart_rx_available() && usb_cdc_tx_free())
             usb_cdc_tx_write(uart_rx());
 
         if (usb_cdc_rx_available() && uart_tx_free())
             uart_tx(usb_cdc_rx_read());
+#endif
 
 #if 0
         uint16_t cdc_rx_avail = usb_cdc_rx_available();
@@ -188,4 +196,9 @@ void main()
             usb_cdc_tx_write(uart_rx());
 #endif
     }
+}
+
+void usb_reset_handler()
+{
+    bt_hci_h4_reset();
 }

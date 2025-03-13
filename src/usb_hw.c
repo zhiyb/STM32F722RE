@@ -8,6 +8,7 @@ static void usb_reset()
     usb_hw_set_address(0);
     usb_hw_ep_init();
     usb_cdc_init();
+    usb_reset_handler();
 }
 
 void usb_init()

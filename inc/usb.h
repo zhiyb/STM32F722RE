@@ -76,3 +76,5 @@ uint8_t usb_cdc_rx_read();
 void usb_cdc_data_in();
 uint16_t usb_cdc_tx_free();
 void usb_cdc_tx_write(uint8_t v);
+
+void usb_reset_handler();

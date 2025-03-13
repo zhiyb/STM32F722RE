@@ -1,4 +1,5 @@
 #include "usb.h"
+#include "bt_hci_usb.h"
 #include "semihosting.h"
 
 #define REQ_GET_STATUS          0
@@ -89,6 +90,12 @@ void usb_ep0_setup(setup_t *setup)
         default:
             DBG_BKPT("Unknown Interface");
         }
+        break;
+
+    case 0x20:
+        // Host-to-device, class, device request
+        // Special request type for bluetooth HCI Commands
+        ret = bt_hci_usb_setup(setup);
         break;
 
     default:

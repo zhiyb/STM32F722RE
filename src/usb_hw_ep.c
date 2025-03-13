@@ -95,7 +95,7 @@ static volatile struct {
 
 static volatile struct {
     setup_t setup;
-    uint8_t data[64];   // DATA OUT buffer
+    uint8_t data[256];  // DATA OUT buffer
 } ctrl_buf ALIGNED(4);
 
 // Event queue for deferring IRQ events to main thread
@@ -344,10 +344,12 @@ void usb_hw_ep_ctr_irq()
                 if (buf_len == 0) {
                     // DATA OUT complete, defer to main thread
                     event_push_irq(ev, ch);
+                    // Keep NAK, wait for main thread
+                    CHEP(ch) = CHEP_MASK(chep);
+                } else {
+                    // More data to be received
+                    CHEP(ch) = CHEP_MASK(chep) | CHEP_RX_VALID(chep);
                 }
-
-                // Keep NAK, wait for main thread
-                CHEP(ch) = CHEP_MASK(chep);
                 break;
             }
 

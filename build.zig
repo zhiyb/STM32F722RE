@@ -50,6 +50,8 @@ pub fn build(b: *std.Build) void {
         "src/usb_desc.c",
         "src/usb_hid.c",
         "src/usb_cdc.c",
+        "src/bt_hci_h4.c",
+        "src/bt_hci_usb.c",
     }, .flags = &.{
         "-DSTM32C071xx",
     } });
