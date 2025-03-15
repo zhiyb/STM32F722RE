@@ -3,14 +3,14 @@
 #include "dma.h"
 #include "uart.h"
 
-#define FIFO_BUF_SIZE   512
+#define FIFO_BUF_SIZE   1024
 
 enum {Tx = 0, Rx = 1};
 
 static struct {
-    uint8_t buf[FIFO_BUF_SIZE] ALIGNED(4);
+    uint8_t buf[FIFO_BUF_SIZE];
     uint16_t ofs;
-} uart_fifo[2] ALIGNED(4);
+} uart_fifo[2];
 
 void uart_init()
 {
