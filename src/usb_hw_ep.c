@@ -1,6 +1,7 @@
-#include "usb.h"
 #include "stm32c0xx.h"
 #include "semihosting.h"
+#include "macros.h"
+#include "usb.h"
 
 #define TXBD(count, addr) \
     (((count) << 16) | (0x0000ffff & ((uint32_t)(addr) - USB_DRD_PMAADDR)))

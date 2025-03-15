@@ -1,6 +1,7 @@
 #pragma once
 
 #include "usb.h"
+#include "macros.h"
 
 // Table 12: Type Values for the bDescriptorType Field
 #define DESC_TYPE_CS_INTERFACE  0x24

@@ -2,10 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-
-#define PACKED          __attribute__((packed))
-#define ALIGNED(v)      __attribute__((aligned(v)))
-#define ARRAY_SIZE(a)   (sizeof(a) / sizeof(a[0]))
+#include "macros.h"
 
 typedef enum {
     UsbInterfaceHid,

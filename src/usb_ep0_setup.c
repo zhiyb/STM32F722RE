@@ -1,6 +1,7 @@
 #include "usb.h"
 #include "bt_hci_usb.h"
 #include "semihosting.h"
+#include "macros.h"
 
 #define REQ_GET_STATUS          0
 #define REQ_CLEAR_FEATURE       1

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "usb.h"
+#include "macros.h"
 
 #define DESC_TYPE_HID           0x21
 #define DESC_TYPE_HID_REPORT    0x22

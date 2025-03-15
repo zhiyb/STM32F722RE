@@ -1,7 +1,8 @@
 #include <stdbool.h>
 #include "stm32c0xx.h"
 #include "systick.h"
-#include "uart.c"
+#include "dma.h"
+#include "uart.h"
 #include "usb.h"
 #include "bt_hci_h4.h"
 #include "semihosting.h"
@@ -63,6 +64,7 @@ void board_init()
     GPIOC->MODER = (0b01 << GPIO_MODER_MODE9_Pos) | (0b00 << GPIO_MODER_MODE13_Pos);
 
     systick_init();
+    dma_m2m_init();
     uart_init();
     usb_init();
 
@@ -145,8 +147,10 @@ void main()
         usb_hid_process(now_ms);
 
 #if 1
-        if (uart_rx_available())
-            bt_hci_h4_rx(uart_rx());
+        if (uart_rx_available()) {
+            uint8_t v = uart_rx();
+            bt_hci_h4_rx(v);
+        }
 #endif
 
 #if 0

@@ -2,6 +2,7 @@
 #include "usb_desc_hid.h"
 #include "usb_desc_cdc.h"
 #include "semihosting.h"
+#include "macros.h"
 
 #define DESC_TYPE_DEVICE                        1
 #define DESC_TYPE_CONFIGURATION                 2
