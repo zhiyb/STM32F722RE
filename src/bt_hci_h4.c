@@ -33,9 +33,8 @@ static struct {
         h4_block_t data[RX_HCI_EVENT_NUM_BLOCKS];
         uint8_t wptr, rptr, cptr;
     } event;
-    uint16_t wlen;
+    uint16_t wlen, wofs;
     uint8_t wblocks, rblocks;
-    uint8_t wofs;
     uint8_t type;
     event_t state;
 } bt_h4;
@@ -157,8 +156,8 @@ void bt_hci_h4_rx(uint8_t v)
             bt_h4.wofs = 0;
             bt_h4.wlen = 2;
             break;
-        default:
-            DBG_BKPT("Unknown type");
+        // default:
+        //     DBG_BKPT("Unknown type");
         }
         return;
     }
@@ -204,7 +203,8 @@ void bt_hci_h4_rx(uint8_t v)
             break;
         }
         bt_h4.state = H4HCIData;
-        return;
+        if (bt_h4.wlen != bt_h4.wofs)
+            return; // More data follows
     }
 
     // Data block complete
@@ -212,13 +212,19 @@ void bt_hci_h4_rx(uint8_t v)
     switch (bt_h4.type) {
     case 0x02:  // HCI ACL Data Packet
         bt_h4.acl.wptr = (wptr + 1) % RX_HCI_ACL_NUM_BLOCKS;
+        if (bt_h4.acl.wptr == bt_h4.acl.cptr)
+            DBG_BKPT("overrun");
         break;
     case 0x03:  // HCI Synchronous Data Packet
         bt_h4.sync.wptr = (wptr + 1) % RX_HCI_SYNC_NUM_BLOCKS;
+        if (bt_h4.sync.wptr == bt_h4.sync.cptr)
+            DBG_BKPT("overrun");
         break;
     case 0x04:  // HCI Event Packet
     default:
         bt_h4.event.wptr = (wptr + 1) % RX_HCI_EVENT_NUM_BLOCKS;
+        if (bt_h4.event.wptr == bt_h4.event.cptr)
+            DBG_BKPT("overrun");
         break;
     }
 

@@ -4,16 +4,21 @@
 #include <stdint.h>
 #include "macros.h"
 
-#define USB_ALT_IF_HID  0
-#define USB_ALT_IF_CDC  1
-#define USB_ALT_IF      USB_ALT_IF_CDC
+#define USB_ALT_IF_NONE 0
+#define USB_ALT_IF_HID  1
+#define USB_ALT_IF_CDC  2
+#define USB_ALT_IF      USB_ALT_IF_NONE
 
 typedef enum {
-    UsbInterfaceHid,
-    UsbInterfaceCDCComm,
-    UsbInterfaceCDCData,
     UsbInterfaceBtHci,
     UsbInterfaceBtVoice,
+#if USB_ALT_IF == USB_ALT_IF_HID
+    UsbInterfaceHid,
+#endif
+#if USB_ALT_IF == USB_ALT_IF_CDC
+    UsbInterfaceCDCComm,
+    UsbInterfaceCDCData,
+#endif
     UsbNumInterfaces,
 } usb_interface_id_t;
 

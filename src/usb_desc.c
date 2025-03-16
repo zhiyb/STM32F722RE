@@ -173,9 +173,15 @@ static const desc_device_t desc_device ALIGNED(4) = {
     .bLength = sizeof(desc_device),
     .bDescriptorType = DESC_TYPE_DEVICE,
     .bcdUSB = 0x0200,
-    .bDeviceClass = 0xef,   // Miscellaneous Device
+#if USB_ALT_IF != USB_ALT_IF_NONE
+    .bDeviceClass = 0xef,       // Miscellaneous Device
     .bDeviceSubClass = 2,
-    .bDeviceProtocol = 1,   // Interface Association
+    .bDeviceProtocol = 1,       // Interface Association
+#else
+    .bDeviceClass = 0xe0,       // Wireless Controller
+    .bDeviceSubClass = 0x01,    // RF Controller
+    .bDeviceProtocol = 0x01,    // Bluetooth Primary Controller
+#endif
     .bMaxPacketSize0 = 64,
     .idVendor = 0x0483,     // STMicroelectronics
     .idProduct = 0x5750,
@@ -188,6 +194,23 @@ static const desc_device_t desc_device ALIGNED(4) = {
 
 static const struct PACKED {
     desc_configuration_t configuration;
+
+    struct PACKED {
+#if USB_ALT_IF != USB_ALT_IF_NONE
+        desc_interface_association_t iassoc;
+#endif
+        struct PACKED {
+            desc_interface_t interface;
+            desc_endpoint_t endpoint_events;
+            desc_endpoint_t endpoint_aci_out;
+            desc_endpoint_t endpoint_aci_in;
+        } hci;
+        struct PACKED {
+            desc_interface_t interface;
+            desc_endpoint_t endpoint_out;
+            desc_endpoint_t endpoint_in;
+        } voice[7];
+    } bt;
 
 #if USB_ALT_IF == USB_ALT_IF_HID
     struct PACKED {
@@ -212,21 +235,6 @@ static const struct PACKED {
     } cdc;
 #endif
 
-    struct PACKED {
-        desc_interface_association_t iassoc;
-        struct PACKED {
-            desc_interface_t interface;
-            desc_endpoint_t endpoint_events;
-            desc_endpoint_t endpoint_aci_out;
-            desc_endpoint_t endpoint_aci_in;
-        } hci;
-        struct PACKED {
-            desc_interface_t interface;
-            desc_endpoint_t endpoint_out;
-            desc_endpoint_t endpoint_in;
-        } voice[7];
-    } bt;
-
 } desc_configuration ALIGNED(4) = {
     .configuration = {
         .bLength = sizeof(desc_configuration_t),
@@ -236,100 +244,11 @@ static const struct PACKED {
         .bConfigurationValue = 1,
         .iConfiguration = 0,
         .bmAttributes = 0xe0,
-
+        .bMaxPower = 100 / 2,
     },
-
-#if USB_ALT_IF == USB_ALT_IF_HID
-    .hid = {
-        .interface = {
-            .bLength = sizeof(desc_interface_t),
-            .bDescriptorType = DESC_TYPE_INTERFACE,
-            .bInterfaceNumber = UsbInterfaceHid,
-            .bAlternateSetting = 0,
-            .bNumEndpoints = 1,
-            .bInterfaceClass = 0x03,
-            .bInterfaceSubClass = 0x01, // Boot interface
-            .bInterfaceProtocol = 0x01, // Keyboard
-            .iInterface = 0,
-        },
-        .hid = desc_hid,
-        .endpoint = {
-            .bLength = sizeof(desc_endpoint_t),
-            .bDescriptorType = DESC_TYPE_ENDPOINT,
-            .bEndpointAddress = 0x80 | UsbEpHid,    // IN
-            .bmAttributes = 0b11,       // Interrupt
-            .wMaxPacketSize = 8,
-            .bInterval = 10,            // 10ms polling interval
-        },
-    },
-
-#elif USB_ALT_IF == USB_ALT_IF_CDC
-    .cdc = {
-        .iassoc = {
-            .bLength = sizeof(desc_interface_association_t),
-            .bDescriptorType = DESC_TYPE_INTERFACE_ASSOCIATION,
-            .bFirstInterface = UsbInterfaceCDCComm,
-            .bInterfaceCount = 2,
-            .bFunctionClass = 2,        // Communications
-            .bFunctionSubClass = 2,     // Abstract (modem)
-            .bFunctionProtocol = 1,     // AT-commands (v.25ter)
-            .iFunction = String_CDC,
-        },
-        .comm = {
-            .interface = {
-                .bLength = sizeof(desc_interface_t),
-                .bDescriptorType = DESC_TYPE_INTERFACE,
-                .bInterfaceNumber = UsbInterfaceCDCComm,
-                .bAlternateSetting = 0,
-                .bNumEndpoints = 1,
-                .bInterfaceClass = 2,       // Communications
-                .bInterfaceSubClass = 2,    // Abstract (modem)
-                .bInterfaceProtocol = 1,    // AT-commands (v.25ter)
-                .iInterface = String_CDC,
-            },
-            .cdc = desc_cdc_class,
-            .endpoint = {
-                .bLength = sizeof(desc_endpoint_t),
-                .bDescriptorType = DESC_TYPE_ENDPOINT,
-                .bEndpointAddress = 0x80 | UsbEpCDCComm,    // IN
-                .bmAttributes = 0b11,       // Interrupt
-                .wMaxPacketSize = 8,
-                .bInterval = 16,            // 16ms polling interval
-            },
-        },
-        .data = {
-            .interface = {
-                .bLength = sizeof(desc_interface_t),
-                .bDescriptorType = DESC_TYPE_INTERFACE,
-                .bInterfaceNumber = UsbInterfaceCDCData,
-                .bAlternateSetting = 0,
-                .bNumEndpoints = 2,
-                .bInterfaceClass = 10,      // CDC Data
-                .bInterfaceSubClass = 0,
-                .bInterfaceProtocol = 0,
-                .iInterface = String_CDC,
-            },
-            .endpoint_out = {
-                .bLength = sizeof(desc_endpoint_t),
-                .bDescriptorType = DESC_TYPE_ENDPOINT,
-                .bEndpointAddress = 0x00 | UsbEpCDCData,    // OUT
-                .bmAttributes = 0b10,       // Bulk
-                .wMaxPacketSize = 64,
-                .bInterval = 0,
-            },
-            .endpoint_in = {
-                .bLength = sizeof(desc_endpoint_t),
-                .bDescriptorType = DESC_TYPE_ENDPOINT,
-                .bEndpointAddress = 0x80 | UsbEpCDCData,    // IN
-                .bmAttributes = 0b10,       // Bulk
-                .wMaxPacketSize = 64,
-                .bInterval = 0,
-            },
-        },
-    },
-#endif
 
     .bt = {
+#if USB_ALT_IF != USB_ALT_IF_NONE
         .iassoc = {
             .bLength = sizeof(desc_interface_association_t),
             .bDescriptorType = DESC_TYPE_INTERFACE_ASSOCIATION,
@@ -340,6 +259,7 @@ static const struct PACKED {
             .bFunctionProtocol = 0x01,      // Bluetooth Primary Controller
             .iFunction = String_BT,
         },
+#endif
         .hci = {
             .interface = {
                 .bLength = sizeof(desc_interface_t),
@@ -577,6 +497,96 @@ static const struct PACKED {
             },
         },
     },
+
+#if USB_ALT_IF == USB_ALT_IF_HID
+    .hid = {
+        .interface = {
+            .bLength = sizeof(desc_interface_t),
+            .bDescriptorType = DESC_TYPE_INTERFACE,
+            .bInterfaceNumber = UsbInterfaceHid,
+            .bAlternateSetting = 0,
+            .bNumEndpoints = 1,
+            .bInterfaceClass = 0x03,
+            .bInterfaceSubClass = 0x01, // Boot interface
+            .bInterfaceProtocol = 0x01, // Keyboard
+            .iInterface = 0,
+        },
+        .hid = desc_hid,
+        .endpoint = {
+            .bLength = sizeof(desc_endpoint_t),
+            .bDescriptorType = DESC_TYPE_ENDPOINT,
+            .bEndpointAddress = 0x80 | UsbEpHid,    // IN
+            .bmAttributes = 0b11,       // Interrupt
+            .wMaxPacketSize = 8,
+            .bInterval = 10,            // 10ms polling interval
+        },
+    },
+
+#elif USB_ALT_IF == USB_ALT_IF_CDC
+    .cdc = {
+        .iassoc = {
+            .bLength = sizeof(desc_interface_association_t),
+            .bDescriptorType = DESC_TYPE_INTERFACE_ASSOCIATION,
+            .bFirstInterface = UsbInterfaceCDCComm,
+            .bInterfaceCount = 2,
+            .bFunctionClass = 2,        // Communications
+            .bFunctionSubClass = 2,     // Abstract (modem)
+            .bFunctionProtocol = 1,     // AT-commands (v.25ter)
+            .iFunction = String_CDC,
+        },
+        .comm = {
+            .interface = {
+                .bLength = sizeof(desc_interface_t),
+                .bDescriptorType = DESC_TYPE_INTERFACE,
+                .bInterfaceNumber = UsbInterfaceCDCComm,
+                .bAlternateSetting = 0,
+                .bNumEndpoints = 1,
+                .bInterfaceClass = 2,       // Communications
+                .bInterfaceSubClass = 2,    // Abstract (modem)
+                .bInterfaceProtocol = 1,    // AT-commands (v.25ter)
+                .iInterface = String_CDC,
+            },
+            .cdc = desc_cdc_class,
+            .endpoint = {
+                .bLength = sizeof(desc_endpoint_t),
+                .bDescriptorType = DESC_TYPE_ENDPOINT,
+                .bEndpointAddress = 0x80 | UsbEpCDCComm,    // IN
+                .bmAttributes = 0b11,       // Interrupt
+                .wMaxPacketSize = 8,
+                .bInterval = 16,            // 16ms polling interval
+            },
+        },
+        .data = {
+            .interface = {
+                .bLength = sizeof(desc_interface_t),
+                .bDescriptorType = DESC_TYPE_INTERFACE,
+                .bInterfaceNumber = UsbInterfaceCDCData,
+                .bAlternateSetting = 0,
+                .bNumEndpoints = 2,
+                .bInterfaceClass = 10,      // CDC Data
+                .bInterfaceSubClass = 0,
+                .bInterfaceProtocol = 0,
+                .iInterface = String_CDC,
+            },
+            .endpoint_out = {
+                .bLength = sizeof(desc_endpoint_t),
+                .bDescriptorType = DESC_TYPE_ENDPOINT,
+                .bEndpointAddress = 0x00 | UsbEpCDCData,    // OUT
+                .bmAttributes = 0b10,       // Bulk
+                .wMaxPacketSize = 64,
+                .bInterval = 0,
+            },
+            .endpoint_in = {
+                .bLength = sizeof(desc_endpoint_t),
+                .bDescriptorType = DESC_TYPE_ENDPOINT,
+                .bEndpointAddress = 0x80 | UsbEpCDCData,    // IN
+                .bmAttributes = 0b10,       // Bulk
+                .wMaxPacketSize = 64,
+                .bInterval = 0,
+            },
+        },
+    },
+#endif
 };
 
 const uint8_t *usb_desc_get(uint8_t type, uint8_t index, uint16_t *len)

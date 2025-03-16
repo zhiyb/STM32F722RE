@@ -424,7 +424,7 @@ void usb_hw_ep_ctr_irq()
         uint32_t chep = CHEP(ch);
         uint8_t ep = chep & 0x0f;
         if (ch != 0 && ep == 0)
-            break;
+            continue;
 
         if (chep & USB_CHEP_VTRX_Msk) {
             // RX complete, SETUP or OUT

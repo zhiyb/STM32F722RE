@@ -3,6 +3,31 @@
 #include "usb.h"
 #include "semihosting.h"
 
+#define REQ_GET_STATUS          0
+#define REQ_CLEAR_FEATURE       1
+#define REQ_SET_FEATURE         3
+#define REQ_SET_ADDRESS         5
+#define REQ_GET_DESCRIPTOR      6
+#define REQ_SET_DESCRIPTOR      7
+#define REQ_GET_CONFIGURATION   8
+#define REQ_SET_CONFIGURATION   9
+#define REQ_GET_INTERFACE       10
+#define REQ_SET_INTERFACE       11
+#define REQ_SYNCH_FRAME         12
+
+const void *bt_hci_usb_voice_setup(setup_t *setup)
+{
+    switch (setup->bRequest) {
+    case REQ_SET_INTERFACE:
+        if (setup->wValue != 0)
+            TODO();
+        break;
+    default:
+        TODO();
+    }
+    return 0;
+}
+
 const void *bt_hci_usb_setup(setup_t *setup)
 {
     // Treat the packet as an HCI command packet regardless of

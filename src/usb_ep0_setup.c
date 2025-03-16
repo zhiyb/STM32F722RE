@@ -27,6 +27,12 @@ static inline const void *usb_ep0_setup_standard_req(setup_t *setup)
 {
     // Table 9-3 Standard Device Requests
     switch (setup->bRequest) {
+    case REQ_CLEAR_FEATURE:
+        return 0;
+
+    case REQ_SET_FEATURE:
+        return 0;
+
     case REQ_SET_ADDRESS:
         // setup->bmRequestType == 0
         usb_hw_set_address(setup->wValue);
@@ -70,7 +76,7 @@ static inline const void *usb_ep0_setup_standard_req(setup_t *setup)
 
 void usb_ep0_setup(setup_t *setup)
 {
-    void *ret = (void *)-1;
+    const void *ret = (void *)-1;
     switch (setup->bmRequestType & 0x7f) {
     case 0x00:
         // Standard device request
@@ -82,11 +88,18 @@ void usb_ep0_setup(setup_t *setup)
     case 0x21:
         // Class interface request
         switch (setup->wIndex) {
+#if USB_ALT_IF == USB_ALT_IF_HID
         case UsbInterfaceHid:
             ret = usb_hid_setup(setup);
             break;
+#endif
+#if USB_ALT_IF == USB_ALT_IF_CDC
         case UsbInterfaceCDCComm:
             ret = usb_cdc_setup(setup);
+            break;
+#endif
+        case UsbInterfaceBtVoice:
+            ret = bt_hci_usb_voice_setup(setup);
             break;
         default:
             DBG_BKPT("Unknown Interface");

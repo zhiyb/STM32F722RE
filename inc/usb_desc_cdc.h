@@ -50,6 +50,7 @@ typedef struct PACKED {
     desc_cdc_union_t iunion;
 } desc_cdc_t;
 
+#if USB_ALT_IF == USB_ALT_IF_CDC
 static const desc_cdc_t desc_cdc_class = {
     .header = {
         .bFunctionLength = sizeof(desc_cdc_header_t),
@@ -78,3 +79,4 @@ static const desc_cdc_t desc_cdc_class = {
         .bSubordinateInterface0 = UsbInterfaceCDCData,
     },
 };
+#endif

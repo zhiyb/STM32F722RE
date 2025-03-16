@@ -3,6 +3,7 @@
 #include "usb.h"
 
 const void *bt_hci_usb_setup(setup_t *setup);
+const void *bt_hci_usb_voice_setup(setup_t *setup);
 
 void bt_hci_usb_acl_confirm();
 void bt_hci_usb_event_confirm();

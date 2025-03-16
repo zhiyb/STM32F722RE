@@ -31,6 +31,9 @@ void board_init()
     RCC->APBENR2 = RCC_APBENR2_USART1EN;
     RCC->IOPENR = RCC_IOPENR_GPIOAEN | RCC_IOPENR_GPIOBEN | RCC_IOPENR_GPIOCEN;
 
+    // Enable CRS auto-trim
+    CRS->CR = (0x40 << CRS_CR_TRIM_Pos) | CRS_CR_AUTOTRIMEN_Msk | CRS_CR_CEN_Msk;
+
     // Configure GPIOs
     // PA2:  USART2_TX, AF1
     // PA3:  USART2_RX, AF1, pull-up
@@ -65,13 +68,16 @@ void board_init()
     GPIOC->MODER = (0b01 << GPIO_MODER_MODE9_Pos) | (0b00 << GPIO_MODER_MODE13_Pos);
 
     systick_init();
+    dma_init();
     dma_m2m_init();
     uart_init();
     usb_init();
 
     // Configure NVIC interrupt priorities
-    NVIC_SetPriority(USB_DRD_FS_IRQn, 4);
+    NVIC_SetPriority(USB_DRD_FS_IRQn, 0);
+    NVIC_SetPriority(DMA1_Channel1_IRQn, 4);
     NVIC_SetPriority(SysTick_IRQn, 8);
+
     // Configure interrupt vector table location
     extern uint32_t __isr_vector_start;
     SCB->VTOR = (uint32_t)&__isr_vector_start;
