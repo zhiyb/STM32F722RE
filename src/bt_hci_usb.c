@@ -49,23 +49,4 @@ void bt_hci_usb_process()
         if (data)
             usb_hw_ep_tx(UsbEpBtHciEvents, data, len, false);
     }
-
-    static uint32_t last_ms = 0;
-    if (!last_ms)
-        last_ms = systick_ms();
-    uint32_t now_ms = systick_ms();
-    uint32_t delta = now_ms - last_ms;
-    if (delta >= 2000) {
-        last_ms += 2000;
-        static uint32_t i = 0;
-        static uint32_t j = 0;
-        if (usb_hw_ep_tx_db_available(UsbEpBtACLDataIn)) {
-            i += 1;
-            usb_hw_ep_tx_db(UsbEpBtACLDataIn, (uint8_t *)&i, 4);
-        }
-        if (usb_hw_ep_tx_db_available(UsbEpBtACLDataIn)) {
-            j += 0x100;
-            usb_hw_ep_tx_db(UsbEpBtACLDataIn, (uint8_t *)&j, 4);
-        }
-    }
 }

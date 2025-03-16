@@ -93,11 +93,11 @@ static const uint16_t ch_buf_size[8][2] = {
 };
 
 // In-progress TX/RX requests
-static volatile struct {
-    volatile void * data;
-    uint32_t len;
-    uint8_t db_valid[2];
-    uint8_t first;
+static struct {
+    volatile void * volatile data;
+    volatile uint32_t len;
+    volatile uint8_t db_valid[2];
+    volatile uint8_t first;
 } txrx_req[8];          // Channel index
 
 static volatile struct {
@@ -318,12 +318,8 @@ bool usb_hw_ep_tx_db_available(uint8_t ep)
     // TX with double buffering
     uint8_t ch = ep_to_tx_ch(ep);
     uint32_t chep = CHEP(ch);
-    if (txrx_req[ch].first) {
-        return (chep & USB_CHEP_TX_STTX_Msk) != (0b11 << USB_CHEP_TX_STTX_Pos);
-    } else {
-        uint8_t sw_buf = !!(chep & USB_CHEP_DTOG_RX_Msk);
-        return !txrx_req[ch].db_valid[sw_buf];
-    }
+    uint8_t sw_buf = !!(chep & USB_CHEP_DTOG_RX_Msk);
+    return !txrx_req[ch].db_valid[sw_buf];
 }
 
 void usb_hw_ep_tx_db(uint8_t ep, const void *data, uint32_t len)
@@ -353,41 +349,12 @@ void usb_hw_ep_tx_db(uint8_t ep, const void *data, uint32_t len)
     *bd = TXBD(len, dst);
     txrx_req[ch].db_valid[sw_buf] = 1;
 
-#if 0
-    static int i = 0;
-    if (i++ != 0)
-        DBG_BKPT("should not happen");
-    // dbg_bkpt();
-#endif
-
-    // If endpoint is currently stalled, start transfer
     chep = CHEP(ch);
-#if 0
-    if ((chep & USB_CHEP_TX_STTX_Msk) != (0b11 << USB_CHEP_TX_STTX_Pos) ||
-        (!!(chep & USB_CHEP_DTOG_TX_Msk) == sw_buf)) {
-        // Enable endpoint channel for IN transfer, toggle SW_BUF
+    if (txrx_req[ch].first ? sw_buf == 0 :
+        !!(chep & USB_CHEP_DTOG_TX_Msk) == sw_buf) {
+        // Endpoint is currently stalled, start transfer
         CHEP(ch) = CHEP_MASK(chep) | CHEP_TX_VALID(chep) | USB_CHEP_DTOG_RX_Msk;
     }
-#elif 1
-    if (txrx_req[ch].first) {
-        CHEP(ch) = CHEP_MASK(chep) | CHEP_TX_VALID(chep) | USB_CHEP_DTOG_RX_Msk;
-    } else if (!!(chep & USB_CHEP_DTOG_TX_Msk) == sw_buf) {
-        CHEP(ch) = CHEP_MASK(chep) | CHEP_TX_VALID(chep) | USB_CHEP_DTOG_RX_Msk;
-    }
-
-#else
-    CHEP(ch) = CHEP_MASK(chep) | CHEP_TX_VALID(chep) | USB_CHEP_DTOG_RX_Msk;
-#endif
-
-    // if (!!(chep & USB_CHEP_DTOG_TX_Msk) == sw_buf) {
-        // Enable endpoint channel for IN transfer, toggle SW_BUF
-#if 0
-        CHEP(ch) = CHEP_MASK(chep) | CHEP_TX_VALID(chep) |
-            ((chep ^ (0)) & (USB_CHEP_DTOG_RX_Msk | USB_CHEP_DTOG_TX_Msk));
-#endif
-        // CHEP(ch) = CHEP_MASK(chep) | CHEP_TX_VALID(chep);
-        // CHEP(ch) = CHEP_MASK(chep) | CHEP_TX_VALID(chep) | USB_CHEP_DTOG_RX_Msk;
-    // }
 }
 
 void usb_hw_ep_tx_stall(uint8_t ep)
@@ -573,9 +540,8 @@ void usb_hw_ep_ctr_irq()
                 if (chep & USB_CHEP_KIND_Msk) {
                     // Double buffering support
                     txrx_req[ch].first = 0;
-                    bool dtog = !!(chep & USB_CHEP_DTOG_TX_Msk);
-                    txrx_req[ch].db_valid[!dtog] = 0;
                     bool sw_buf = !!(chep & USB_CHEP_DTOG_RX_Msk);
+                    txrx_req[ch].db_valid[!sw_buf] = 0;
                     if (txrx_req[ch].db_valid[sw_buf]) {
                         // Data buffer has been filled already, continue
                         CHEP(ch) = CHEP_MASK(chep) | CHEP_TX_VALID(chep) | USB_CHEP_DTOG_RX_Msk;
