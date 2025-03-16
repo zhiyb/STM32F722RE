@@ -109,22 +109,39 @@ static volatile struct {
 #define EVENT_QUEUE_SIZE    4
 
 typedef enum {
-    EventSetup  = 0x01,
-    EventOut    = 0x02,
-    EventIn     = 0x10,
+    EventSetup,
+    EventOut,
+    EventIn,
 } event_ev_t;
 
 typedef struct {
-    uint8_t event[2][8];
-    uint8_t wrptr;
+    uint8_t setup;
+    uint8_t out;
+    uint8_t in;
+} event_t;
+
+typedef struct {
+    volatile event_t event[2][8];
+    volatile bool wrptr;
 } hw_event_t;
 
 static volatile hw_event_t hw_event;
 
 static void event_push_irq(event_ev_t ev, uint8_t ch)
 {
-    uint8_t wrptr = hw_event.wrptr;
-    hw_event.event[wrptr][ch] |= ev;
+    bool wrptr = hw_event.wrptr;
+    volatile event_t *event = &hw_event.event[wrptr][ch];
+    switch (ev) {
+    case EventSetup:
+        event->setup += 1;
+        break;
+    case EventOut:
+        event->out += 1;
+        break;
+    case EventIn:
+        event->in += 1;
+        break;
+    }
 }
 
 void usb_hw_ep_init()
@@ -165,6 +182,8 @@ void usb_hw_ep_init()
         (chep & (USB_CHEP_DTOG_TX_Msk | USB_CHEP_DTOG_RX_Msk)) | ch;
     // Ready for OUT
     chep = CHEP(ch);
+    // Set DTOG_TX to purposely fail and skip the first DATA0 transaction,
+    // to avoid extra transaction caused by first valid + double bugffing request
     CHEP(ch) = (0b00 << USB_CHEP_UTYPE_Pos) | USB_CHEP_KIND_Msk | CHEP_RX_VALID(chep) | CHEP_TX_DISABLED(chep) |
         (chep & (USB_CHEP_DTOG_TX_Msk | USB_CHEP_DTOG_RX_Msk)) | ch;
 
@@ -327,6 +346,7 @@ void usb_hw_ep_tx_db(uint8_t ep, const void *data, uint32_t len)
     uint8_t ch = ep_to_tx_ch(ep);
     const uint16_t max_len = ch_buf_size[ch][Tx];
 
+    // Not actually used
     if (len > max_len) {
         txrx_req[ch].data = (void *)data + max_len;
         txrx_req[ch].len = len - max_len;
@@ -546,17 +566,37 @@ void usb_hw_ep_ctr_irq()
             case 0b00 << USB_CHEP_UTYPE_Pos:    // Bulk
                 if (chep & USB_CHEP_KIND_Msk) {
                     // Double buffering support
-                    txrx_req[ch].first = false;
-                    bool sw_buf = !!(chep & USB_CHEP_DTOG_RX_Msk);
-                    txrx_req[ch].db_valid[!sw_buf] = 0;
-                    if (txrx_req[ch].db_valid[sw_buf]) {
-                        // Data buffer has been filled already, continue
-                        CHEP(ch) = CHEP_MASK(chep) | CHEP_TX_VALID(chep) | USB_CHEP_DTOG_RX_Msk;
+                    bool skip = false;
+                    if (txrx_req[ch].first) {
+                        txrx_req[ch].first = false;
+                        // Ignore the first purposefully skipped DATA0 transaction
+                        if ((chep & USB_CHEP_DTOG_TX_Msk) == 0) {
+                            // Clear VTTX and check again that DTOG hasn't changed
+                            CHEP(ch) = CHEP_MASK(chep) & ~USB_CHEP_VTTX_Msk;
+                            chep = CHEP(ch);
+                            skip = (chep & USB_CHEP_DTOG_TX_Msk) == 0;
+                        }
                     }
+
+                    if (!skip) {
+                        txrx_req[ch].first = false;
+                        bool sw_buf = !!(chep & USB_CHEP_DTOG_RX_Msk);
+                        txrx_req[ch].db_valid[!sw_buf] = 0;
+                        if (txrx_req[ch].db_valid[sw_buf]) {
+                            // Data buffer has been filled already, continue
+                            CHEP(ch) = CHEP_MASK(chep) | CHEP_TX_VALID(chep) | USB_CHEP_DTOG_RX_Msk;
+                        }
+                        // Send IN complete event to main thread
+                        event_push_irq(EventIn, ch);
+                        CHEP(ch) = CHEP_MASK(chep) & ~USB_CHEP_VTTX_Msk;
+                    }
+
+                } else {
+                    // No double buffering
+                    // Send IN complete event to main thread
+                    event_push_irq(EventIn, ch);
+                    CHEP(ch) = CHEP_MASK(chep) & ~USB_CHEP_VTTX_Msk;
                 }
-                // Send IN complete event to main thread
-                event_push_irq(EventIn, ch);
-                CHEP(ch) = CHEP_MASK(chep) & ~USB_CHEP_VTTX_Msk;
                 break;
 
             default:
@@ -575,82 +615,80 @@ void usb_hw_ep_process()
     uint8_t rdptr = hw_event.wrptr;
     hw_event.wrptr = !rdptr;
     for (uint8_t ch = 0; ch < 8; ch++) {
-        uint8_t ev = hw_event.event[rdptr][ch];
-        if (ev) {
-            hw_event.event[rdptr][ch] = 0;
+        volatile event_t *event = &hw_event.event[rdptr][ch];
+
+        if (event->setup) {
+            usb_ep0_setup((setup_t *)&ctrl_buf.setup);
+            event->setup = 0;
+        }
+
+        while (event->out != 0) {
             uint32_t chep = CHEP(ch);
-            uint8_t ep = chep & 0x0f;
-
-            if (ev & EventSetup) {
-                usb_ep0_setup((setup_t *)&ctrl_buf.setup);
-            }
-
-            if (ev & EventOut) {
-                if ((chep & USB_CHEP_UTYPE_Msk) == (0b10 << USB_CHEP_UTYPE_Pos) ||
-                    (chep & (USB_CHEP_UTYPE_Msk | USB_CHEP_KIND_Msk)) == ((0b00 << USB_CHEP_UTYPE_Pos) | USB_CHEP_KIND_Msk)) {
-                    // Double buffering enabled
-                    bool sw_buf = !!(chep & USB_CHEP_DTOG_TX_Msk);
-                    for (uint8_t i = 0; i < 2; i++) {
-                        uint8_t idx = i ^ !sw_buf;
-                        if (!txrx_req[ch].db_valid[idx])
-                            break;
-                        uint32_t bd = idx ? usb_sram->chep[ch].TXRXBD : usb_sram->chep[ch].RXTXBD;
-                        uint32_t *data = TXRXDB_PTR(bd);
-                        uint16_t len = TXRXBD_COUNT(bd);
-                        bool rx_valid = false;
-                        switch (ep) {
-                        case UsbEpBtACLData:
-                            rx_valid = bt_hci_usb_acl_tx(data, len);
-                            break;
-                        default:
-                            DBG_BKPT("Unknown endpoint");
-                        }
-                        if (rx_valid) {
-                            // Ready for next RX
-                            txrx_req[ch].db_valid[idx] = 0;
-                            uint32_t chep = CHEP(ch);
-                            if (!!(chep & USB_CHEP_DTOG_RX_Msk) == !!(chep & USB_CHEP_DTOG_TX_Msk)) {
-                                // RX stalled, toggle SW_BUF to get ready
-                                CHEP(ch) = CHEP_MASK(chep) | CHEP_RX_VALID(chep) | USB_CHEP_DTOG_TX_Msk;
-                            }
-                        }
-                    }
-                } else {
-                    uint32_t bd = usb_sram->chep[ch].RXTXBD;
-                    uint32_t *data = TXRXDB_PTR(bd);
-                    uint16_t len = TXRXBD_COUNT(bd);
-                    bool rx_valid = false;
-                    switch (ep) {
-                    case UsbEpCDCData:
-                        rx_valid = usb_cdc_data_out(data, len);
-                        break;
-                    default:
-                        DBG_BKPT("Unknown endpoint");
-                    }
-                    if (rx_valid) {
-                        // Ready for next RX
-                        CHEP(ch) = CHEP_MASK(chep) | CHEP_RX_VALID(chep);
-                    }
-                }
-            }
-
-            if (ev & EventIn) {
-                switch (ep) {
-                case UsbEp0Ctrl:
-                    break;
-                case UsbEpBtHciEvents:
-                    bt_hci_usb_event_confirm();
-                    break;
+            if ((chep & USB_CHEP_UTYPE_Msk) == (0b10 << USB_CHEP_UTYPE_Pos) ||
+                (chep & (USB_CHEP_UTYPE_Msk | USB_CHEP_KIND_Msk)) == USB_CHEP_KIND_Msk) {
+                // Double buffering enabled
+                bool sw_buf = !!(chep & USB_CHEP_DTOG_TX_Msk);
+                uint32_t bd = !sw_buf ? usb_sram->chep[ch].TXRXBD : usb_sram->chep[ch].RXTXBD;
+                uint32_t *data = TXRXDB_PTR(bd);
+                uint16_t len = TXRXBD_COUNT(bd);
+                bool rx_valid = false;
+                switch (ch) {
                 case UsbEpBtACLData:
-                    bt_hci_usb_acl_confirm();
-                    break;
-                case UsbEpCDCData:
-                    usb_cdc_data_in();
+                    rx_valid = bt_hci_usb_acl_tx(data, len);
                     break;
                 default:
                     DBG_BKPT("Unknown endpoint");
                 }
+                if (rx_valid) {
+                    // Ready for next RX
+                    txrx_req[ch].db_valid[!sw_buf] = 0;
+                    uint32_t chep = CHEP(ch);
+                    if (!!(chep & USB_CHEP_DTOG_RX_Msk) == !!(chep & USB_CHEP_DTOG_TX_Msk)) {
+                        // RX stalled, toggle SW_BUF to get ready
+                        CHEP(ch) = CHEP_MASK(chep) | CHEP_RX_VALID(chep) | USB_CHEP_DTOG_TX_Msk;
+                    }
+                } else {
+                    break;
+                }
+
+            } else {
+                // Simple endpoints
+                uint32_t bd = usb_sram->chep[ch].RXTXBD;
+                uint32_t *data = TXRXDB_PTR(bd);
+                uint16_t len = TXRXBD_COUNT(bd);
+                bool rx_valid = false;
+                switch (ch) {
+                case UsbEpCDCData:
+                    rx_valid = usb_cdc_data_out(data, len);
+                    break;
+                default:
+                    DBG_BKPT("Unknown endpoint");
+                }
+                if (rx_valid) {
+                    // Ready for next RX
+                    CHEP(ch) = CHEP_MASK(chep) | CHEP_RX_VALID(chep);
+                }
             }
+            event->out -= 1;
+        }
+
+        while (event->in != 0) {
+            switch (ch) {
+            case UsbEp0Ctrl:
+                break;
+            case UsbEpBtHciEvents:
+                bt_hci_usb_event_confirm();
+                break;
+            case UsbEpBtACLDataIn:
+                bt_hci_usb_acl_confirm();
+                break;
+            case UsbEpCDCData:
+                usb_cdc_data_in();
+                break;
+            default:
+                DBG_BKPT("Unknown endpoint");
+            }
+            event->in -= 1;
         }
     }
 }

@@ -40,32 +40,6 @@ static struct {
     event_t state;
 } bt_h4;
 
-#if 0
-#define RX_BLOCK_SIZE   64
-#define RX_NUM_BLOCKS   8
-
-static struct {
-    struct {
-        uint8_t data[RX_BLOCK_SIZE] ALIGNED(4);
-        uint8_t type, len;
-    } block[RX_NUM_BLOCKS];
-    uint16_t wlen;
-    uint8_t wptr, wofs;
-    uint8_t rptr;
-    event_t state;
-} bt_h4_rx;
-
-#define TX_BLOCK_SIZE   64
-#define TX_NUM_BLOCKS   8
-
-static struct {
-    struct {
-        uint8_t data[TX_BLOCK_SIZE] ALIGNED(4);
-        uint8_t type, len;
-    } block[TX_NUM_BLOCKS];
-} bt_h4_tx;
-#endif
-
 void bt_hci_h4_reset()
 {
     // bt_h4.cmd.rptr = 0;
@@ -83,11 +57,6 @@ void bt_hci_h4_reset()
     bt_h4.rblocks = 0;
     bt_h4.state = H4Packet;
 
-#if 0
-    bt_h4_rx.rptr = 0;
-    bt_h4_rx.wptr = 0;
-    bt_h4_rx.state = H4Packet;
-#endif
 #if 0   // HCL Reset Command
     static const uint8_t reset[3] ALIGNED(4) = {
         0x03, 0x0c, 0x00,
@@ -260,70 +229,4 @@ void bt_hci_h4_rx(uint8_t v)
         // Packet data complete
         bt_h4.state = H4Packet;
     }
-
-#if 0
-
-    case H4HCIData: {
-        // Block complete
-        uint8_t type = bt_h4_rx.block[wptr].type;
-        uint8_t len = (wofs % RX_BLOCK_SIZE) ?: RX_BLOCK_SIZE;
-        uint8_t wptr_n = (wptr + 1) % RX_NUM_BLOCKS;
-        bt_h4_rx.block[wptr].len = len;
-        bt_h4_rx.wptr = wptr_n;
-        if (wofs < wlen) {
-            // More data follows
-            bt_h4_rx.block[wptr_n].type = type;
-        } else {
-            // Packet complete
-            bt_h4_rx.state = H4Packet;
-            bt_h4_rx.wofs = 0;
-            bt_h4_rx.wlen = 0;
-        }
-        // Send completed block to USB
-        switch (type) {
-        case 0x02:  // HCI ACL Data Packet
-            bt_hci_usb_acl_tx(&bt_h4_rx.block[wptr].data[0], len);
-            break;
-        case 0x04:  // HCI Event Packet
-            bt_hci_usb_event(&bt_h4_rx.block[wptr].data[0], len);
-            break;
-        default:
-            TODO();
-            break;
-        }
-        break;
-    }
-
-    }
-
-#endif
-
-}
-
-void bt_hci_h4_process()
-{
-#if 0
-    uint8_t rblocks = bt_h4.rblocks;
-    if (rblocks == bt_h4.wblocks)
-        return;
-
-    if (bt_h4.sync.rptr != bt_h4.sync.wptr) {
-        TODO();
-        rblocks += 1;
-    }
-
-    if (bt_h4.acl.rptr != bt_h4.acl.wptr) {
-        // HCI ACL Data Packet
-        h4_block_t *block = &bt_h4.acl.data[bt_h4.acl.rptr];
-        bt_hci_usb_acl_tx(&block->data[0], block->len);
-    }
-
-    if (bt_h4.event.rptr != bt_h4.event.wptr) {
-        // HCI Event Packet
-        h4_block_t *block = &bt_h4.event.data[bt_h4.event.rptr];
-        bt_hci_usb_event(&block->data[0], block->len);
-    }
-
-    bt_h4.rblocks = rblocks;
-#endif
 }

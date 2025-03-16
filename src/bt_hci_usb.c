@@ -29,8 +29,6 @@ void bt_hci_usb_event_confirm()
     bt_hci_h4_confirm(BtH4HciEvent);
 }
 
-#include "systick.h"
-
 void bt_hci_usb_process()
 {
     if (usb_hw_ep_tx_db_available(UsbEpBtACLDataIn)) {

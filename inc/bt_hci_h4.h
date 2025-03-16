@@ -11,7 +11,6 @@ typedef enum {
 } bt_h4_type_t;
 
 void bt_hci_h4_reset();
-void bt_hci_h4_process();
 
 // Upstream
 void bt_hci_h4_tx(bt_h4_type_t type, const uint8_t *data, uint8_t len);
