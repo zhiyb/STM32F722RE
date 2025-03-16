@@ -30,6 +30,8 @@ void bt_hci_usb_event_confirm()
     bt_hci_h4_confirm(BtH4HciEvent);
 }
 
+#include "systick.h"
+
 void bt_hci_usb_process()
 {
     if (usb_hw_ep_tx_db_available(UsbEpBtACLDataIn)) {
@@ -46,5 +48,24 @@ void bt_hci_usb_process()
         const uint8_t *data = bt_hci_h4_read(BtH4HciEvent, &len);
         if (data)
             usb_hw_ep_tx(UsbEpBtHciEvents, data, len, false);
+    }
+
+    static uint32_t last_ms = 0;
+    if (!last_ms)
+        last_ms = systick_ms();
+    uint32_t now_ms = systick_ms();
+    uint32_t delta = now_ms - last_ms;
+    if (delta >= 2000) {
+        last_ms += 2000;
+        static uint32_t i = 0;
+        static uint32_t j = 0;
+        if (usb_hw_ep_tx_db_available(UsbEpBtACLDataIn)) {
+            i += 1;
+            usb_hw_ep_tx_db(UsbEpBtACLDataIn, (uint8_t *)&i, 4);
+        }
+        if (usb_hw_ep_tx_db_available(UsbEpBtACLDataIn)) {
+            j += 0x100;
+            usb_hw_ep_tx_db(UsbEpBtACLDataIn, (uint8_t *)&j, 4);
+        }
     }
 }
