@@ -5,6 +5,7 @@
 #include "uart.h"
 #include "usb.h"
 #include "bt_hci_h4.h"
+#include "bt_hci_usb.h"
 #include "semihosting.h"
 
 #define RCC_CFGR_SW_HSI48   (0b010 << RCC_CFGR_SW_Pos)
@@ -100,6 +101,11 @@ int button_read()
     return !(GPIOC->IDR & GPIO_IDR_ID13_Msk);
 }
 
+void usb_reset_handler()
+{
+    bt_hci_h4_reset();
+}
+
 void main()
 {
     board_init();
@@ -144,14 +150,17 @@ void main()
         }
 
         usb_process();
-        usb_hid_process(now_ms);
+        // usb_hid_process(now_ms);
 
 #if 1
-        if (uart_rx_available()) {
+        while (uart_rx_available()) {
             uint8_t v = uart_rx();
             bt_hci_h4_rx(v);
         }
 #endif
+
+        // bt_hci_h4_process();
+        bt_hci_usb_process();
 
 #if 0
         if (uart_rx_available() && usb_cdc_tx_free())
@@ -200,9 +209,4 @@ void main()
             usb_cdc_tx_write(uart_rx());
 #endif
     }
-}
-
-void usb_reset_handler()
-{
-    bt_hci_h4_reset();
 }

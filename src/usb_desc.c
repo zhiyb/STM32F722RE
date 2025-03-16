@@ -189,12 +189,14 @@ static const desc_device_t desc_device ALIGNED(4) = {
 static const struct PACKED {
     desc_configuration_t configuration;
 
+#if USB_ALT_IF == USB_ALT_IF_HID
     struct PACKED {
         desc_interface_t interface;
         desc_hid_t hid;
         desc_endpoint_t endpoint;
     } hid;
 
+#elif USB_ALT_IF == USB_ALT_IF_CDC
     struct PACKED {
         desc_interface_association_t iassoc;
         struct PACKED {
@@ -208,6 +210,7 @@ static const struct PACKED {
             desc_endpoint_t endpoint_in;
         } data;
     } cdc;
+#endif
 
     struct PACKED {
         desc_interface_association_t iassoc;
@@ -236,6 +239,7 @@ static const struct PACKED {
 
     },
 
+#if USB_ALT_IF == USB_ALT_IF_HID
     .hid = {
         .interface = {
             .bLength = sizeof(desc_interface_t),
@@ -259,6 +263,7 @@ static const struct PACKED {
         },
     },
 
+#elif USB_ALT_IF == USB_ALT_IF_CDC
     .cdc = {
         .iassoc = {
             .bLength = sizeof(desc_interface_association_t),
@@ -322,6 +327,7 @@ static const struct PACKED {
             },
         },
     },
+#endif
 
     .bt = {
         .iassoc = {

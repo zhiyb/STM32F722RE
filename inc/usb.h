@@ -4,6 +4,10 @@
 #include <stdint.h>
 #include "macros.h"
 
+#define USB_ALT_IF_HID  0
+#define USB_ALT_IF_CDC  1
+#define USB_ALT_IF      USB_ALT_IF_CDC
+
 typedef enum {
     UsbInterfaceHid,
     UsbInterfaceCDCComm,
@@ -15,13 +19,15 @@ typedef enum {
 
 typedef enum {
     UsbEp0Ctrl = 0,
-    UsbEpHid,
-    UsbEpCDCComm,
-    UsbEpCDCData,
-    UsbEpBtHciEvents,
-    UsbEpBtACLData,
-    UsbEpBtVoice,
-    UsbNumEndpoints,
+    UsbEpBtHciEvents = 1,
+    UsbEpBtACLData = 2,
+    UsbEpBtACLDataIn = 6,   // Double-buffering channel
+    UsbEpBtVoice = 3,
+    UsbEpBtVoiceIn = 7,     // Double-buffering channel
+    // Alternative interfaces
+    UsbEpHid = 4,
+    UsbEpCDCComm = 4,
+    UsbEpCDCData = 5,
 } usb_endpoint_t;
 
 typedef enum {
@@ -50,6 +56,8 @@ void usb_hw_ep_ctr_irq();
 bool usb_hw_act();
 void usb_hw_ep_process();
 void usb_hw_ep_tx(uint8_t ep, const void *data, uint32_t len, bool status_out);
+bool usb_hw_ep_tx_db_available(uint8_t ep);
+void usb_hw_ep_tx_db(uint8_t ep, const void *data, uint32_t len);
 void usb_hw_ep_tx_stall(uint8_t ep);
 void usb_hw_ep_tx_nak(uint8_t ep);
 uint32_t *usb_hw_ep_tx_buffer(uint8_t ep, uint16_t *len);
