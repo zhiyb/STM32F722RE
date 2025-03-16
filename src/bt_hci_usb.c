@@ -15,7 +15,6 @@ const void *bt_hci_usb_setup(setup_t *setup)
 
 bool bt_hci_usb_acl_tx(uint32_t *data, uint16_t len)
 {
-    dbg_bkpt();
     bt_hci_h4_tx(BtH4HciAclData, data, len);
     return true;
 }
