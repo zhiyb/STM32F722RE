@@ -229,10 +229,32 @@ void bt_hci_h4_rx(uint8_t v)
     }
 
     bt_h4.wblocks += 1;
-    if (wofs < bt_h4.wlen) {
-        // More data follows
-    } else {
-        // Packet data complete
-        bt_h4.state = H4Packet;
+    if (wofs < bt_h4.wlen)
+        return; // More data follows
+
+    // Packet data complete
+    bt_h4.state = H4Packet;
+
+    // Check if zero-length packet required by USB to split data segment
+    if (block->len % 64 != 0)
+        return;
+
+    switch (bt_h4.type) {
+    case 0x02:  // HCI ACL Data Packet
+        wptr = (wptr + 1) % RX_HCI_ACL_NUM_BLOCKS;
+        bt_h4.acl.data[wptr].len = 0;
+        bt_h4.acl.wptr = (wptr + 1) % RX_HCI_ACL_NUM_BLOCKS;
+        if (bt_h4.acl.wptr == bt_h4.acl.cptr)
+            DBG_BKPT("overrun");
+        break;
+    // case 0x03:  // HCI Synchronous Data Packet (not possible)
+    case 0x04:  // HCI Event Packet
+    default:
+        wptr = (wptr + 1) % RX_HCI_EVENT_NUM_BLOCKS;
+        bt_h4.event.data[wptr].len = 0;
+        bt_h4.event.wptr = (wptr + 1) % RX_HCI_EVENT_NUM_BLOCKS;
+        if (bt_h4.event.wptr == bt_h4.event.cptr)
+            DBG_BKPT("overrun");
+        break;
     }
 }
