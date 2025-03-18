@@ -57,8 +57,7 @@ bool usb_is_connected();
 void usb_process();
 
 void usb_hw_ep_init();
-void usb_hw_ep_ctr_irq();
-bool usb_hw_act();
+void usb_hw_ep_ctr_irq(uint8_t ch);
 void usb_hw_ep_process();
 void usb_hw_ep_tx(uint8_t ep, const void *data, uint32_t len, bool status_out);
 bool usb_hw_ep_tx_db_available(uint8_t ep);

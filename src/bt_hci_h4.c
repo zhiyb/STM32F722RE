@@ -5,9 +5,9 @@
 
 #define BLOCK_SIZE              64
 #define TX_HCI_CMD_NUM_BLOCKS   0
-#define RX_HCI_ACL_NUM_BLOCKS   8
-#define RX_HCI_SYNC_NUM_BLOCKS  8
-#define RX_HCI_EVENT_NUM_BLOCKS 8
+#define RX_HCI_ACL_NUM_BLOCKS   16
+#define RX_HCI_SYNC_NUM_BLOCKS  16
+#define RX_HCI_EVENT_NUM_BLOCKS 16
 
 typedef enum {H4Packet, H4HCIHeader, H4HCIData} event_t;
 

@@ -44,6 +44,7 @@ pub fn build(b: *std.Build) void {
         "src/main.c",
         "src/startup_stm32c071xx.s",
         "src/systick.c",
+        "src/log.c",
         "src/dma.c",
         "src/uart.c",
         "src/usb_hw.c",

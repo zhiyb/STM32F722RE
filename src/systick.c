@@ -1,6 +1,9 @@
 #include "stm32c071xx.h"
 #include "systick.h"
 
+// 1000 Hz
+#define PERIOD  (48000000 / 8 / 1000)
+
 static volatile uint32_t ms = 0;
 
 void systick_init()
@@ -8,7 +11,7 @@ void systick_init()
     // Configure SysTick to 1ms period
     SysTick->CTRL = 0;
     // SysTick->LOAD = SysTick->CALIB;
-    SysTick->LOAD = 48000000 / 8 / 1000;    // 1000 Hz
+    SysTick->LOAD = PERIOD - 1;
     SysTick->VAL = 0;
     // SysTick interrupt enable not controlled by NVIC
     SysTick->CTRL = SysTick_CTRL_TICKINT_Msk | SysTick_CTRL_ENABLE_Msk;
@@ -17,6 +20,13 @@ void systick_init()
 uint32_t systick_ms()
 {
     return ms;
+}
+
+uint32_t systick_log()
+{
+    uint32_t v = ms << 16;
+    v |= PERIOD - 1 - SysTick->VAL;
+    return v;
 }
 
 void SysTick_Handler()

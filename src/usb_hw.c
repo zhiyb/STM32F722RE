@@ -1,6 +1,7 @@
-#include "usb.h"
 #include "stm32c0xx.h"
 #include "semihosting.h"
+#include "log.h"
+#include "usb.h"
 
 static void usb_reset()
 {
@@ -34,15 +35,23 @@ void USB_DRD_FS_IRQHandler()
 {
     uint32_t istr = USB_DRD_FS->ISTR;
     uint32_t clr = 0x00037f80;  // Avoid clear unhandled interrupts
+    // log_push(LogUSB_Interrupt, istr);
+
+    if (istr & USB_ISTR_SOF_Msk) {
+        // Start of frame
+        log_push(LogUSB_SOF, USB_DRD_FS->FNR);
+        clr &= ~USB_ISTR_SOF_Msk;
+    }
+
+    if (istr & USB_ISTR_CTR_Msk) {
+        // Transfer complete
+        usb_hw_ep_ctr_irq(istr & 0x1f);
+    }
 
     if (istr & USB_ISTR_RESET_Msk) {
         // USB reset
-        clr &= ~USB_ISTR_RESET_Msk;
         usb_reset();
-
-    } else if (istr & USB_ISTR_CTR_Msk) {
-        // Transfer complete
-        usb_hw_ep_ctr_irq();
+        clr &= ~USB_ISTR_RESET_Msk;
     }
 
     // Clear handled interrupts
