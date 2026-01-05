@@ -1,8 +1,8 @@
-#include "stm32c071xx.h"
+#include "stm32f7xx.h"
 #include "systick.h"
 
 // 1000 Hz
-#define PERIOD  (48000000 / 8 / 1000)
+#define PERIOD  (216000000 / 8 / 1000)
 
 static volatile uint32_t ms = 0;
 

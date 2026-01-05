@@ -1,11 +1,9 @@
-/* Specify the memory areas */
-MEMORY
-{
-  FLASH (rx)    : ORIGIN = 0x08000000, LENGTH = 128K
-  /* CODE (rx)     : ORIGIN = 0x00000000, LENGTH = 128K */
-  RAM (xrw)     : ORIGIN = 0x20000000, LENGTH = 24K
-  USBRAM (xrw)  : ORIGIN = 0x40009800, LENGTH = 2K
-}
+INCLUDE STM32F722RE_MEMORY.ld
+
+/* Choose AXIM interface for loading application */
+REGION_ALIAS("FLASH", FLASHA);
+/* Choose AXIM interface for running application */
+REGION_ALIAS("RAM", DTCM);
 
 /* Top of stack at end of RAM space */
 __stack_end = ORIGIN(RAM) + LENGTH(RAM);
@@ -106,15 +104,6 @@ SECTIONS
     __bss_end = .;
   } >RAM
 
-  /* USB RAM, uninitialised */
-  . = ALIGN(4);
-  .usbram :
-  {
-    KEEP(*(.usbram))
-    KEEP(*(.usbram*))
-    . = ALIGN(4);
-  } >USBRAM
-
 
   /* Remove information from the standard libraries */
   /DISCARD/ :
@@ -126,5 +115,3 @@ SECTIONS
 
   .ARM.attributes 0 : { *(.ARM.attributes) }
 }
-
-
