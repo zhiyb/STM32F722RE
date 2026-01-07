@@ -1,10 +1,3 @@
-INCLUDE STM32F722RE_MEMORY.ld
-
-/* Choose AXIM interface for loading application */
-REGION_ALIAS("FLASH", FLASHA);
-/* Choose AXIM interface for running application */
-REGION_ALIAS("RAM", DTCM);
-
 /* Top of stack at end of RAM space */
 __stack_end = ORIGIN(RAM) + LENGTH(RAM);
 

@@ -6,7 +6,7 @@
         {
             "label": "zig build",
             "type": "shell",
-            "command": "zig build --release=safe --summary all && size zig-out/bin/fw",
+            "command": "zig build --release=safe --summary all && size zig-out/bin/*",
             "problemMatcher": [],
             "group": {
               "kind": "build",

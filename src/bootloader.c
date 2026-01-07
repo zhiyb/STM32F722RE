@@ -2,7 +2,6 @@
 #include "stm32f7xx.h"
 #include "systick.h"
 // #include "dma.h"
-// #include "uart.h"
 // #include "usb.h"
 #include "semihosting.h"
 #include "irq.h"
@@ -93,28 +92,6 @@ static void board_init()
 	systick_init();
 }
 
-// void led_set(int led, bool state)
-// {
-//     if (led == 0) {
-//         // PA5, active-high
-//         if (state)
-//             GPIOA->BSRR = GPIO_BSRR_BS5_Msk;
-//         else
-//             GPIOA->BSRR = GPIO_BSRR_BR5_Msk;
-//     } else {
-//         // PC9, active-low
-//         if (state)
-//             GPIOC->BSRR = GPIO_BSRR_BR9_Msk;
-//         else
-//             GPIOC->BSRR = GPIO_BSRR_BS9_Msk;
-//     }
-// }
-
-// int button_read()
-// {
-//     return !(GPIOC->IDR & GPIO_IDR_ID13_Msk);
-// }
-
 // void usb_reset_handler()
 // {
 //     bt_hci_h4_reset();
@@ -124,7 +101,7 @@ void main()
 {
     board_init();
 
-    dbg_puts("firmware\r\n");
+    dbg_puts("bootloader\r\n");
     dbg_bkpt();
 
     for (;;) {}
@@ -149,34 +126,8 @@ void main()
 //             led_set(0, led);
 //         }
 
-//         if (debouncing) {
-//             if (now_ms - debouncing_ms >= 100)
-//                 debouncing = false;
-//         } else {
-//             bool btn_now = button_read();
-//             if (btn != btn_now) {
-//                 btn = btn_now;
-//                 debouncing = true;
-//                 if (btn_now) {
-//                     usb = !usb;
-//                     led_set(1, usb);
-//                     usb_connect(usb);
-//                 }
-//             }
-//         }
-
 //         usb_process();
 //         // usb_hid_process(now_ms);
-
-// #if 1
-//         while (uart_rx_available()) {
-//             uint8_t v = uart_rx();
-//             bt_hci_h4_rx(v);
-//         }
-// #endif
-
-//         // bt_hci_h4_process();
-//         bt_hci_usb_process();
 
 // #if 0
 //         if (uart_rx_available() && usb_cdc_tx_free())
@@ -186,43 +137,5 @@ void main()
 //             uart_tx(usb_cdc_rx_read());
 // #endif
 
-// #if 0
-//         uint16_t cdc_rx_avail = usb_cdc_rx_available();
-//         uint16_t cdc_tx_free = usb_cdc_tx_free();
-//         uint16_t avail = cdc_rx_avail < cdc_tx_free ? cdc_rx_avail : cdc_tx_free;
-//         for (uint16_t i = 0; i < avail; i++) {
-//             uint8_t v = usb_cdc_rx_read();
-
-//             // Mouse control test
-//             int8_t x = 0, y = 0, d = 8;
-//             switch (v) {
-//             case 'w':
-//                 y = -d;
-//                 break;
-//             case 's':
-//                 y = d;
-//                 break;
-//             case 'a':
-//                 x = -d;
-//                 break;
-//             case 'd':
-//                 x = d;
-//                 break;
-//             }
-//             if (x != 0 || y != 0)
-//                 usb_hid_mouse_move(x, y);
-
-//             // Serial port echo test
-//             if (v >= 'a' && v < 'z')
-//                 v++;    // Test
-//             usb_cdc_tx_write(v);
-
-//             if (uart_tx_free())
-//                 uart_tx(v);
-//         }
-
-//         if (uart_rx_available())
-//             usb_cdc_tx_write(uart_rx());
-// #endif
 //     }
 }

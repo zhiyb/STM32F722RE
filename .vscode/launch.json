@@ -9,12 +9,33 @@
             /* Configuration for the application debug binary */
             "type": "cortex-debug",
             "request": "launch",
-            "name": "Debug application (zhiyb-RPi0W2-2:3333)",
+            "name": "Debug firmware (zhiyb-RPi0W2-2:3333)",
             "servertype": "external",
             "cwd": "${workspaceRoot}",
             "preLaunchTask": "zig build",
             "runToEntryPoint": "main",
             "executable": "zig-out/bin/fw",
+            "gdbPath": "gdb-multiarch",
+            "gdbTarget": "zhiyb-RPi0W2-2:3333",
+            "svdFile": "STM32F722.svd",
+            "swoConfig": {
+                "enabled": false,
+                "cpuFrequency": 8000000,
+                "swoFrequency": 2000000,
+                "source": "probe",
+                "decoders": [
+                    { "type": "console", "label": "ITM", "port": 0 }
+                ]
+            }
+        }, {
+            "type": "cortex-debug",
+            "request": "launch",
+            "name": "Debug bootloader (zhiyb-RPi0W2-2:3333)",
+            "servertype": "external",
+            "cwd": "${workspaceRoot}",
+            "preLaunchTask": "zig build",
+            "runToEntryPoint": "main",
+            "executable": "zig-out/bin/bl",
             "gdbPath": "gdb-multiarch",
             "gdbTarget": "zhiyb-RPi0W2-2:3333",
             "svdFile": "STM32F722.svd",
