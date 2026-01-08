@@ -19,7 +19,7 @@ pub fn build(b: *std.Build) void {
         .cpu_arch = .thumb,
         .cpu_model = .{ .explicit = &std.Target.arm.cpu.cortex_m7 },
         .cpu_features_add = features,
-        .abi = .eabi,
+        .abi = .musleabihf,
         .os_tag = .freestanding,
     });
 
