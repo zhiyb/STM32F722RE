@@ -51,8 +51,8 @@ typedef struct PACKED {
     uint8_t data[0];
 } setup_t;
 
-void usb_init();
-void usb_connect(bool enable);
+void usb_init(USB_OTG_GlobalTypeDef *hw_g);
+void usb_connect(USB_OTG_GlobalTypeDef *hw_g, bool enable);
 bool usb_is_connected();
 void usb_process();
 

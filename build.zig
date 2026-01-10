@@ -130,6 +130,7 @@ pub fn build(b: *std.Build) void {
         .files = &(target_c_sources ++ .{
             "src/bootloader.c",
             "src/systick.c",
+            "src/usb_hw.c",
         }),
         .flags = &(target_flags ++ .{"-DBOOTLOADER"}),
     });

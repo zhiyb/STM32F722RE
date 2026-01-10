@@ -2,7 +2,7 @@
 #include "stm32f7xx.h"
 #include "systick.h"
 // #include "dma.h"
-// #include "usb.h"
+#include "usb.h"
 #include "semihosting.h"
 #include "irq.h"
 
@@ -175,6 +175,9 @@ static void board_init()
     GPIOC->AFR[1] = 0;
     // Wait for IO compensation cell
     while (!(SYSCFG->CMPCR & SYSCFG_CMPCR_READY_Msk));
+
+    usb_init(USB_OTG_FS);
+    usb_init(USB_OTG_HS);
 }
 
 // void usb_reset_handler()
@@ -187,6 +190,14 @@ void main()
     board_init();
 
     dbg_puts("bootloader\r\n");
+    dbg_bkpt();
+
+    usb_connect(USB_OTG_FS, true);
+    usb_connect(USB_OTG_HS, true);
+    dbg_bkpt();
+
+    usb_connect(USB_OTG_FS, false);
+    usb_connect(USB_OTG_HS, false);
     dbg_bkpt();
 
     for (;;) {}
