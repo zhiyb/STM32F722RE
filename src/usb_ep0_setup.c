@@ -1,19 +1,21 @@
-#include "usb.h"
-#include "bt_hci_usb.h"
 #include "semihosting.h"
 #include "macros.h"
+#include "usb.h"
+#include "usb_internal.h"
 
-#define REQ_GET_STATUS          0
-#define REQ_CLEAR_FEATURE       1
-#define REQ_SET_FEATURE         3
-#define REQ_SET_ADDRESS         5
-#define REQ_GET_DESCRIPTOR      6
-#define REQ_SET_DESCRIPTOR      7
-#define REQ_GET_CONFIGURATION   8
-#define REQ_SET_CONFIGURATION   9
-#define REQ_GET_INTERFACE       10
-#define REQ_SET_INTERFACE       11
-#define REQ_SYNCH_FRAME         12
+typedef enum {
+    REQ_GET_STATUS        = 0,
+    REQ_CLEAR_FEATURE     = 1,
+    REQ_SET_FEATURE       = 3,
+    REQ_SET_ADDRESS       = 5,
+    REQ_GET_DESCRIPTOR    = 6,
+    REQ_SET_DESCRIPTOR    = 7,
+    REQ_GET_CONFIGURATION = 8,
+    REQ_SET_CONFIGURATION = 9,
+    REQ_GET_INTERFACE     = 10,
+    REQ_SET_INTERFACE     = 11,
+    REQ_SYNCH_FRAME       = 12,
+} bRequest_t;
 
 typedef struct PACKED {
     union {
@@ -23,7 +25,14 @@ typedef struct PACKED {
 
 static ret_buf_t ret_buf ALIGNED(4);
 
-static inline const void *usb_ep0_setup_standard_req(setup_t *setup)
+void usb_ep0_init(usb_if_t usb_if)
+{
+    usb_t *usb = &usb_ifs[usb_if];
+    // Ready to receive a setup packet
+    usb_hw_ep_out(usb_if, 0, &usb->ep0.setup, 1, 0, 0);
+}
+
+static inline const void *usb_ep0_setup_standard_req(usb_if_t usb_if, setup_t *setup)
 {
     // Table 9-3 Standard Device Requests
     switch (setup->bRequest) {
@@ -35,7 +44,7 @@ static inline const void *usb_ep0_setup_standard_req(setup_t *setup)
 
     case REQ_SET_ADDRESS:
         // setup->bmRequestType == 0
-        usb_hw_set_address(setup->wValue);
+        usb_hw_set_address(usb_if, setup->wValue);
         return 0;
 
     case REQ_GET_DESCRIPTOR: {
@@ -74,56 +83,63 @@ static inline const void *usb_ep0_setup_standard_req(setup_t *setup)
     }
 }
 
-void usb_ep0_setup(setup_t *setup)
+void usb_ep0_setup(usb_if_t usb_if)
 {
+    usb_t *usb = &usb_ifs[usb_if];
+    setup_t *setup = &usb->ep0.setup;
+    if (!(setup->bmRequestType & 0x80) && setup->wLength) {
+        // Ready to receive data stage
+        TODO();
+    }
+
     const void *ret = (void *)-1;
     switch (setup->bmRequestType & 0x7f) {
     case 0x00:
         // Standard device request
-        ret = usb_ep0_setup_standard_req(setup);
+        ret = usb_ep0_setup_standard_req(usb_if, setup);
         break;
 
-    case 0x01:
-        // Standard interface request
-    case 0x21:
-        // Class interface request
-        switch (setup->wIndex) {
-#if USB_ALT_IF == USB_ALT_IF_HID
-        case UsbInterfaceHid:
-            ret = usb_hid_setup(setup);
-            break;
-#endif
-#if USB_ALT_IF == USB_ALT_IF_CDC
-        case UsbInterfaceCDCComm:
-            ret = usb_cdc_setup(setup);
-            break;
-#endif
-        case UsbInterfaceBtVoice:
-            ret = bt_hci_usb_voice_setup(setup);
-            break;
-        default:
-            DBG_BKPT("Unknown Interface");
-        }
-        break;
+//     case 0x01:
+//         // Standard interface request
+//     case 0x21:
+//         // Class interface request
+//         switch (setup->wIndex) {
+// #if USB_ALT_IF == USB_ALT_IF_HID
+//         case UsbInterfaceHid:
+//             ret = usb_hid_setup(setup);
+//             break;
+// #endif
+// #if USB_ALT_IF == USB_ALT_IF_CDC
+//         case UsbInterfaceCDCComm:
+//             ret = usb_cdc_setup(setup);
+//             break;
+// #endif
+//         default:
+//             DBG_BKPT("Unknown Interface");
+//         }
+//         break;
 
-    case 0x20:
-        // Host-to-device, class, device request
-        // Special request type for bluetooth HCI Commands
-        ret = bt_hci_usb_setup(setup);
-        break;
+//     case 0x20:
+//         // Host-to-device, class, device request
+//         // Special request type for bluetooth HCI Commands
+//         ret = bt_hci_usb_setup(setup);
+//         break;
 
     default:
         DBG_BKPT("Unknown request type");
     }
 
+    uint32_t status_out = 0;
     if (ret == (void *)-1) {
         // STALL
-        usb_hw_ep_tx_stall(0);
+        usb_hw_ep_in_stall(usb_if, 0);
     } else if ((setup->bmRequestType & 0x80) != 0 && setup->wLength != 0) {
         // DATA IN
-        usb_hw_ep_tx(0, ret, setup->wLength, true);
+        usb_hw_ep_in(usb_if, 0, ret, setup->wLength, true);
     } else {
         // STATUS IN
-        usb_hw_ep_tx(0, 0, 0, false);
+        usb_hw_ep_in(usb_if, 0, 0, 0, false);
     }
+    // Ready to receive another Setup packet
+    usb_hw_ep_out(usb_if, 0, &usb->ep0.setup, 1, status_out, 0);
 }

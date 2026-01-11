@@ -4,17 +4,20 @@
 #include "semihosting.h"
 #include "macros.h"
 
-#define DESC_TYPE_DEVICE                        1
-#define DESC_TYPE_CONFIGURATION                 2
-#define DESC_TYPE_STRING                        3
-#define DESC_TYPE_INTERFACE                     4
-#define DESC_TYPE_ENDPOINT                      5
-#define DESC_TYPE_DEVICE_QUALIFIER              6
-#define DESC_TYPE_OTHER_SPEED_CONFIGURATION     7
-#define DESC_TYPE_INTERFACE_POWER               8
-#define DESC_TYPE_OTG                           9
-#define DESC_TYPE_DEBUG                         10
-#define DESC_TYPE_INTERFACE_ASSOCIATION         11
+typedef enum {
+    DESC_TYPE_DEVICE                    = 1,
+    DESC_TYPE_CONFIGURATION             = 2,
+    DESC_TYPE_STRING                    = 3,
+    DESC_TYPE_INTERFACE                 = 4,
+    DESC_TYPE_ENDPOINT                  = 5,
+    DESC_TYPE_DEVICE_QUALIFIER          = 6,
+    DESC_TYPE_OTHER_SPEED_CONFIGURATION = 7,
+    DESC_TYPE_INTERFACE_POWER           = 8,
+    DESC_TYPE_OTG                       = 9,
+    DESC_TYPE_DEBUG                     = 10,
+    DESC_TYPE_INTERFACE_ASSOCIATION     = 11,
+    DESC_TYPE_DFU_FUNCTIONAL            = 0x21,
+} bDescriptorType_t;
 
 typedef struct PACKED {
     uint8_t bLength;
@@ -70,6 +73,15 @@ typedef struct PACKED {
 typedef struct PACKED {
     uint8_t bLength;
     uint8_t bDescriptorType;
+    uint8_t bmAttributes;
+    uint16_t wDetachTimeOut;
+    uint16_t wTransferSize;
+    uint16_t bcdDFUVersion;
+} desc_dfu_rt_functional_t;
+
+typedef struct PACKED {
+    uint8_t bLength;
+    uint8_t bDescriptorType;
     uint8_t bEndpointAddress;
     uint8_t bmAttributes;
     uint16_t wMaxPacketSize;
@@ -103,9 +115,7 @@ typedef enum {
     String_iProduct,
     String_iSerialNumber,
     String_CDC,
-    String_BT,
-    String_BT_HCI,
-    String_BT_Voice,
+    String_DFU_RT,
     NumStrings,
 } desc_string_index_t;
 
@@ -119,7 +129,7 @@ static const uint8_t *desc_string(uint8_t index, uint16_t *len)
         desc_string_buf.bLength = 2 + sizeof(wLANGID);
         desc_string_buf.bDescriptorType = DESC_TYPE_STRING;
         uint16_t *dst = (uint16_t *)&desc_string_buf.buf[0];
-        for (uint16_t i = 0; i < sizeof(wLANGID); i++)
+        for (uint16_t i = 0; i < ARRAY_SIZE(wLANGID); i++)
             dst[i] = wLANGID[i];
         break;
     }
@@ -129,7 +139,7 @@ static const uint8_t *desc_string(uint8_t index, uint16_t *len)
         break;
     }
     case String_iProduct: {
-        static const uint8_t str[] = "STM32C071RB";
+        static const uint8_t str[] = "STM32F722RE";
         desc_string_copy(str, sizeof(str) - 1);
         break;
     }
@@ -143,18 +153,8 @@ static const uint8_t *desc_string(uint8_t index, uint16_t *len)
         desc_string_copy(str, sizeof(str) - 1);
         break;
     }
-    case String_BT: {
-        static const uint8_t str[] = "(String_BT)";
-        desc_string_copy(str, sizeof(str) - 1);
-        break;
-    }
-    case String_BT_HCI: {
-        static const uint8_t str[] = "(String_BT_HCI)";
-        desc_string_copy(str, sizeof(str) - 1);
-        break;
-    }
-    case String_BT_Voice: {
-        static const uint8_t str[] = "(String_BT_Voice)";
+    case String_DFU_RT: {
+        static const uint8_t str[] = "(String_DFU_RT)";
         desc_string_copy(str, sizeof(str) - 1);
         break;
     }
@@ -173,6 +173,7 @@ static const desc_device_t desc_device ALIGNED(4) = {
     .bLength = sizeof(desc_device),
     .bDescriptorType = DESC_TYPE_DEVICE,
     .bcdUSB = 0x0200,
+#ifndef BOOTLOADER
 #if USB_ALT_IF != USB_ALT_IF_NONE
     .bDeviceClass = 0xef,       // Miscellaneous Device
     .bDeviceSubClass = 2,
@@ -181,6 +182,11 @@ static const desc_device_t desc_device ALIGNED(4) = {
     .bDeviceClass = 0xe0,       // Wireless Controller
     .bDeviceSubClass = 0x01,    // RF Controller
     .bDeviceProtocol = 0x01,    // Bluetooth Primary Controller
+#endif
+#else
+    .bDeviceClass = 0xfe,       // Application Specific
+    .bDeviceSubClass = 0x01,    // Device Firmware Upgrade
+    .bDeviceProtocol = 0x01,    // Runtime
 #endif
     .bMaxPacketSize0 = 64,
     .idVendor = 0x0483,     // STMicroelectronics
@@ -195,23 +201,7 @@ static const desc_device_t desc_device ALIGNED(4) = {
 static const struct PACKED {
     desc_configuration_t configuration;
 
-    struct PACKED {
-#if USB_ALT_IF != USB_ALT_IF_NONE
-        desc_interface_association_t iassoc;
-#endif
-        struct PACKED {
-            desc_interface_t interface;
-            desc_endpoint_t endpoint_events;
-            desc_endpoint_t endpoint_aci_out;
-            desc_endpoint_t endpoint_aci_in;
-        } hci;
-        struct PACKED {
-            desc_interface_t interface;
-            desc_endpoint_t endpoint_out;
-            desc_endpoint_t endpoint_in;
-        } voice[7];
-    } bt;
-
+#ifndef BOOTLOADER
 #if USB_ALT_IF == USB_ALT_IF_HID
     struct PACKED {
         desc_interface_t interface;
@@ -235,6 +225,13 @@ static const struct PACKED {
     } cdc;
 #endif
 
+#else   // BOOTLOADER
+    struct PACKED {
+        desc_interface_t interface;
+        desc_dfu_rt_functional_t functional;
+    } dfu_rt;
+#endif
+
 } desc_configuration ALIGNED(4) = {
     .configuration = {
         .bLength = sizeof(desc_configuration_t),
@@ -247,257 +244,7 @@ static const struct PACKED {
         .bMaxPower = 100 / 2,
     },
 
-    .bt = {
-#if USB_ALT_IF != USB_ALT_IF_NONE
-        .iassoc = {
-            .bLength = sizeof(desc_interface_association_t),
-            .bDescriptorType = DESC_TYPE_INTERFACE_ASSOCIATION,
-            .bFirstInterface = UsbInterfaceBtHci,
-            .bInterfaceCount = 2,
-            .bFunctionClass = 0xe0,         // Wireless Controller
-            .bFunctionSubClass = 0x01,      // RF Controller
-            .bFunctionProtocol = 0x01,      // Bluetooth Primary Controller
-            .iFunction = String_BT,
-        },
-#endif
-        .hci = {
-            .interface = {
-                .bLength = sizeof(desc_interface_t),
-                .bDescriptorType = DESC_TYPE_INTERFACE,
-                .bInterfaceNumber = UsbInterfaceBtHci,
-                .bAlternateSetting = 0,
-                .bNumEndpoints = 3,
-                .bInterfaceClass = 0xe0,    // Wireless Controller
-                .bInterfaceSubClass = 0x01, // RF Controller
-                .bInterfaceProtocol = 0x01, // Bluetooth Primary Controller
-                .iInterface = String_BT_HCI,
-            },
-            .endpoint_events = {
-                .bLength = sizeof(desc_endpoint_t),
-                .bDescriptorType = DESC_TYPE_ENDPOINT,
-                .bEndpointAddress = 0x80 | UsbEpBtHciEvents,    // IN
-                .bmAttributes = 0x03,       // Interrupt
-                .wMaxPacketSize = 64,
-                .bInterval = 1,             // 1ms polling interval
-            },
-            .endpoint_aci_out = {
-                .bLength = sizeof(desc_endpoint_t),
-                .bDescriptorType = DESC_TYPE_ENDPOINT,
-                .bEndpointAddress = 0x00 | UsbEpBtACLData,      // OUT
-                .bmAttributes = 0x02,       // Bulk
-                .wMaxPacketSize = 64,
-                .bInterval = 0,
-            },
-            .endpoint_aci_in = {
-                .bLength = sizeof(desc_endpoint_t),
-                .bDescriptorType = DESC_TYPE_ENDPOINT,
-                .bEndpointAddress = 0x80 | UsbEpBtACLData,      // IN
-                .bmAttributes = 0x02,       // Bulk
-                .wMaxPacketSize = 64,
-                .bInterval = 0,
-            },
-        },
-        .voice = {
-            {
-                .interface = {
-                    .bLength = sizeof(desc_interface_t),
-                    .bDescriptorType = DESC_TYPE_INTERFACE,
-                    .bInterfaceNumber = UsbInterfaceBtVoice,
-                    .bAlternateSetting = 0,
-                    .bNumEndpoints = 2,
-                    .bInterfaceClass = 0xe0,    // Wireless Controller
-                    .bInterfaceSubClass = 0x01, // RF Controller
-                    .bInterfaceProtocol = 0x01, // Bluetooth Primary Controller
-                    .iInterface = String_BT_Voice,
-                },
-                .endpoint_out = {
-                    .bLength = sizeof(desc_endpoint_t),
-                    .bDescriptorType = DESC_TYPE_ENDPOINT,
-                    .bEndpointAddress = 0x00 | UsbEpBtVoice,        // OUT
-                    .bmAttributes = 0b01,       // Isochronous, no synchronization
-                    .wMaxPacketSize = 0,
-                    .bInterval = 1,             // 1ms polling interval
-                },
-                .endpoint_in = {
-                    .bLength = sizeof(desc_endpoint_t),
-                    .bDescriptorType = DESC_TYPE_ENDPOINT,
-                    .bEndpointAddress = 0x80 | UsbEpBtVoice,        // IN
-                    .bmAttributes = 0b01,       // Isochronous, no synchronization
-                    .wMaxPacketSize = 0,
-                    .bInterval = 1,             // 1ms polling interval
-                },
-            }, {
-                .interface = {
-                    .bLength = sizeof(desc_interface_t),
-                    .bDescriptorType = DESC_TYPE_INTERFACE,
-                    .bInterfaceNumber = UsbInterfaceBtVoice,
-                    .bAlternateSetting = 1,
-                    .bNumEndpoints = 2,
-                    .bInterfaceClass = 0xe0,    // Wireless Controller
-                    .bInterfaceSubClass = 0x01, // RF Controller
-                    .bInterfaceProtocol = 0x01, // Bluetooth Primary Controller
-                    .iInterface = String_BT_Voice,
-                },
-                .endpoint_out = {
-                    .bLength = sizeof(desc_endpoint_t),
-                    .bDescriptorType = DESC_TYPE_ENDPOINT,
-                    .bEndpointAddress = 0x00 | UsbEpBtVoice,        // OUT
-                    .bmAttributes = 0b01,       // Isochronous, no synchronization
-                    .wMaxPacketSize = 9,
-                    .bInterval = 1,             // 1ms polling interval
-                },
-                .endpoint_in = {
-                    .bLength = sizeof(desc_endpoint_t),
-                    .bDescriptorType = DESC_TYPE_ENDPOINT,
-                    .bEndpointAddress = 0x80 | UsbEpBtVoice,        // IN
-                    .bmAttributes = 0b01,       // Isochronous, no synchronization
-                    .wMaxPacketSize = 9,
-                    .bInterval = 1,             // 1ms polling interval
-                },
-            }, {
-                .interface = {
-                    .bLength = sizeof(desc_interface_t),
-                    .bDescriptorType = DESC_TYPE_INTERFACE,
-                    .bInterfaceNumber = UsbInterfaceBtVoice,
-                    .bAlternateSetting = 2,
-                    .bNumEndpoints = 2,
-                    .bInterfaceClass = 0xe0,    // Wireless Controller
-                    .bInterfaceSubClass = 0x01, // RF Controller
-                    .bInterfaceProtocol = 0x01, // Bluetooth Primary Controller
-                    .iInterface = String_BT_Voice,
-                },
-                .endpoint_out = {
-                    .bLength = sizeof(desc_endpoint_t),
-                    .bDescriptorType = DESC_TYPE_ENDPOINT,
-                    .bEndpointAddress = 0x00 | UsbEpBtVoice,        // OUT
-                    .bmAttributes = 0b01,       // Isochronous, no synchronization
-                    .wMaxPacketSize = 17,
-                    .bInterval = 1,             // 1ms polling interval
-                },
-                .endpoint_in = {
-                    .bLength = sizeof(desc_endpoint_t),
-                    .bDescriptorType = DESC_TYPE_ENDPOINT,
-                    .bEndpointAddress = 0x80 | UsbEpBtVoice,        // IN
-                    .bmAttributes = 0b01,       // Isochronous, no synchronization
-                    .wMaxPacketSize = 17,
-                    .bInterval = 1,             // 1ms polling interval
-                },
-            }, {
-                .interface = {
-                    .bLength = sizeof(desc_interface_t),
-                    .bDescriptorType = DESC_TYPE_INTERFACE,
-                    .bInterfaceNumber = UsbInterfaceBtVoice,
-                    .bAlternateSetting = 3,
-                    .bNumEndpoints = 2,
-                    .bInterfaceClass = 0xe0,    // Wireless Controller
-                    .bInterfaceSubClass = 0x01, // RF Controller
-                    .bInterfaceProtocol = 0x01, // Bluetooth Primary Controller
-                    .iInterface = String_BT_Voice,
-                },
-                .endpoint_out = {
-                    .bLength = sizeof(desc_endpoint_t),
-                    .bDescriptorType = DESC_TYPE_ENDPOINT,
-                    .bEndpointAddress = 0x00 | UsbEpBtVoice,        // OUT
-                    .bmAttributes = 0b01,       // Isochronous, no synchronization
-                    .wMaxPacketSize = 25,
-                    .bInterval = 1,             // 1ms polling interval
-                },
-                .endpoint_in = {
-                    .bLength = sizeof(desc_endpoint_t),
-                    .bDescriptorType = DESC_TYPE_ENDPOINT,
-                    .bEndpointAddress = 0x80 | UsbEpBtVoice,        // IN
-                    .bmAttributes = 0b01,       // Isochronous, no synchronization
-                    .wMaxPacketSize = 25,
-                    .bInterval = 1,             // 1ms polling interval
-                },
-            }, {
-                .interface = {
-                    .bLength = sizeof(desc_interface_t),
-                    .bDescriptorType = DESC_TYPE_INTERFACE,
-                    .bInterfaceNumber = UsbInterfaceBtVoice,
-                    .bAlternateSetting = 4,
-                    .bNumEndpoints = 2,
-                    .bInterfaceClass = 0xe0,    // Wireless Controller
-                    .bInterfaceSubClass = 0x01, // RF Controller
-                    .bInterfaceProtocol = 0x01, // Bluetooth Primary Controller
-                    .iInterface = String_BT_Voice,
-                },
-                .endpoint_out = {
-                    .bLength = sizeof(desc_endpoint_t),
-                    .bDescriptorType = DESC_TYPE_ENDPOINT,
-                    .bEndpointAddress = 0x00 | UsbEpBtVoice,        // OUT
-                    .bmAttributes = 0b01,       // Isochronous, no synchronization
-                    .wMaxPacketSize = 33,
-                    .bInterval = 1,             // 1ms polling interval
-                },
-                .endpoint_in = {
-                    .bLength = sizeof(desc_endpoint_t),
-                    .bDescriptorType = DESC_TYPE_ENDPOINT,
-                    .bEndpointAddress = 0x80 | UsbEpBtVoice,        // IN
-                    .bmAttributes = 0b01,       // Isochronous, no synchronization
-                    .wMaxPacketSize = 33,
-                    .bInterval = 1,             // 1ms polling interval
-                },
-            }, {
-                .interface = {
-                    .bLength = sizeof(desc_interface_t),
-                    .bDescriptorType = DESC_TYPE_INTERFACE,
-                    .bInterfaceNumber = UsbInterfaceBtVoice,
-                    .bAlternateSetting = 5,
-                    .bNumEndpoints = 2,
-                    .bInterfaceClass = 0xe0,    // Wireless Controller
-                    .bInterfaceSubClass = 0x01, // RF Controller
-                    .bInterfaceProtocol = 0x01, // Bluetooth Primary Controller
-                    .iInterface = String_BT_Voice,
-                },
-                .endpoint_out = {
-                    .bLength = sizeof(desc_endpoint_t),
-                    .bDescriptorType = DESC_TYPE_ENDPOINT,
-                    .bEndpointAddress = 0x00 | UsbEpBtVoice,        // OUT
-                    .bmAttributes = 0b01,       // Isochronous, no synchronization
-                    .wMaxPacketSize = 49,
-                    .bInterval = 1,             // 1ms polling interval
-                },
-                .endpoint_in = {
-                    .bLength = sizeof(desc_endpoint_t),
-                    .bDescriptorType = DESC_TYPE_ENDPOINT,
-                    .bEndpointAddress = 0x80 | UsbEpBtVoice,        // IN
-                    .bmAttributes = 0b01,       // Isochronous, no synchronization
-                    .wMaxPacketSize = 49,
-                    .bInterval = 1,             // 1ms polling interval
-                },
-            }, {
-                .interface = {
-                    .bLength = sizeof(desc_interface_t),
-                    .bDescriptorType = DESC_TYPE_INTERFACE,
-                    .bInterfaceNumber = UsbInterfaceBtVoice,
-                    .bAlternateSetting = 6,
-                    .bNumEndpoints = 2,
-                    .bInterfaceClass = 0xe0,    // Wireless Controller
-                    .bInterfaceSubClass = 0x01, // RF Controller
-                    .bInterfaceProtocol = 0x01, // Bluetooth Primary Controller
-                    .iInterface = String_BT_Voice,
-                },
-                .endpoint_out = {
-                    .bLength = sizeof(desc_endpoint_t),
-                    .bDescriptorType = DESC_TYPE_ENDPOINT,
-                    .bEndpointAddress = 0x00 | UsbEpBtVoice,        // OUT
-                    .bmAttributes = 0b01,       // Isochronous, no synchronization
-                    .wMaxPacketSize = 63,
-                    .bInterval = 1,             // 1ms polling interval
-                },
-                .endpoint_in = {
-                    .bLength = sizeof(desc_endpoint_t),
-                    .bDescriptorType = DESC_TYPE_ENDPOINT,
-                    .bEndpointAddress = 0x80 | UsbEpBtVoice,        // IN
-                    .bmAttributes = 0b01,       // Isochronous, no synchronization
-                    .wMaxPacketSize = 63,
-                    .bInterval = 1,             // 1ms polling interval
-                },
-            },
-        },
-    },
-
+#ifndef BOOTLOADER
 #if USB_ALT_IF == USB_ALT_IF_HID
     .hid = {
         .interface = {
@@ -584,6 +331,32 @@ static const struct PACKED {
                 .wMaxPacketSize = 64,
                 .bInterval = 0,
             },
+        },
+    },
+#endif
+
+#else   // BOOTLOADER
+    .dfu_rt = {
+        .interface = {
+            .bLength = sizeof(desc_interface_t),
+            .bDescriptorType = DESC_TYPE_INTERFACE,
+            .bInterfaceNumber = UsbInterfaceDfuRT,
+            .bAlternateSetting = 0,
+            .bNumEndpoints = 0,
+            .bInterfaceClass = 0xfe,    // Application Specific
+            .bInterfaceSubClass = 1,    // Device Firmware Upgrade
+            .bInterfaceProtocol = 1,    // Runtime
+            .iInterface = String_DFU_RT,
+        },
+        .functional = {
+            .bLength = sizeof(desc_dfu_rt_functional_t),
+            .bDescriptorType = DESC_TYPE_DFU_FUNCTIONAL,
+            // bitWillDetach, bitManifestationTolerant
+            // bitCanUpload, bitCanDnload
+            .bmAttributes = 0x0f,
+            .wDetachTimeOut = 1000,
+            .wTransferSize = 64,
+            .bcdDFUVersion = 0x0101,
         },
     },
 #endif

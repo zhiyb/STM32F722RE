@@ -1,14 +1,13 @@
-#include "stm32c0xx.h"
+#include "stm32f7xx.h"
 #include "macros.h"
 #include "systick.h"
 #include "log.h"
 
-#define LOG_BUFFER_SIZE     1024
+#define LOG_BUFFER_SIZE 256
 
 typedef struct {
-    uint8_t ev;
-    uint8_t ms;
-    uint16_t tick;
+    log_type_t ev;
+    // uint32_t ms;
     uint32_t data;
 } log_entry_t;
 
@@ -19,16 +18,16 @@ static volatile struct {
 
 void log_push(log_type_t type, uint32_t data)
 {
-    uint32_t t = systick_log();
+    // uint32_t t = systick_log();
+    // uint32_t ms = systick_ms();
     __disable_irq();
     uint16_t wptr = log.wptr;
-    log.wptr = wptr + 1;
+    log.wptr = (wptr + 1) % LOG_BUFFER_SIZE;
     __enable_irq();
 
     log_entry_t ev;
     ev.ev = type;
-    ev.ms = t >> 16;
-    ev.tick = t;
+    // ev.ms = ms;
     ev.data = data;
-    log.entry[wptr % LOG_BUFFER_SIZE] = ev;
+    log.entry[wptr] = ev;
 }

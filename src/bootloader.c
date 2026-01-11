@@ -57,6 +57,7 @@ static void board_init()
     SCB_EnableICache();
     SCB_EnableDCache();
     rcc_init();
+    panic_init();
 
     // Configure interrupt vector table location
     extern uint32_t __isr_vector_start;
@@ -176,52 +177,37 @@ static void board_init()
     // Wait for IO compensation cell
     while (!(SYSCFG->CMPCR & SYSCFG_CMPCR_READY_Msk));
 
-    usb_init(USB_OTG_FS);
-    usb_init(USB_OTG_HS);
+    usb_init(UsbIfFs);
+    usb_init(UsbIfHs);
 }
-
-// void usb_reset_handler()
-// {
-//     bt_hci_h4_reset();
-// }
 
 void main()
 {
     board_init();
 
-    dbg_puts("bootloader\r\n");
-    dbg_bkpt();
+    // dbg_puts("bootloader\r\n");
+    // dbg_bkpt();
 
-    usb_connect(USB_OTG_FS, true);
-    usb_connect(USB_OTG_HS, true);
-    dbg_bkpt();
+    // dbg_puts("USB connect\r\n");
+    usb_connect(UsbIfFs, true);
+    usb_connect(UsbIfHs, true);
+    // dbg_bkpt();
 
-    usb_connect(USB_OTG_FS, false);
-    usb_connect(USB_OTG_HS, false);
-    dbg_bkpt();
+    // dbg_puts("USB disconnect\r\n");
+    // usb_connect(UsbIfFs, false);
+    // usb_connect(UsbIfHs, false);
+    // dbg_bkpt();
 
-    for (;;) {}
+    // uint32_t ms = systick_ms();
+    // while (systick_ms() - ms < 5000);
+    // dbg_bkpt();
 
-//     uint32_t last_ms = systick_ms();
-//     bool led = false;
-//     led_set(0, led);
-
-//     uint32_t debouncing_ms = 0;
-//     bool debouncing = false;
-//     bool btn = false;
-//     bool usb = true;
-
-//     led_set(1, usb);
-//     usb_connect(usb);
+    for (;;) {
+        usb_process(UsbIfFs);
+        usb_process(UsbIfHs);
+    }
 
 //     for (;;) {
-//         uint32_t now_ms = systick_ms();
-//         if (now_ms - last_ms >= 1000) {
-//             last_ms += 1000;
-//             led = !led;
-//             led_set(0, led);
-//         }
-
 //         usb_process();
 //         // usb_hid_process(now_ms);
 
@@ -232,6 +218,5 @@ void main()
 //         if (usb_cdc_rx_available() && uart_tx_free())
 //             uart_tx(usb_cdc_rx_read());
 // #endif
-
 //     }
 }

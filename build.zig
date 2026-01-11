@@ -129,8 +129,14 @@ pub fn build(b: *std.Build) void {
     bl_exe.addCSourceFiles(.{
         .files = &(target_c_sources ++ .{
             "src/bootloader.c",
+            "src/panic.c",
+            "src/log.c",
             "src/systick.c",
+            "src/usb.c",
             "src/usb_hw.c",
+            "src/usb_hw_ep.c",
+            "src/usb_ep0_setup.c",
+            "src/usb_desc.c",
         }),
         .flags = &(target_flags ++ .{"-DBOOTLOADER"}),
     });

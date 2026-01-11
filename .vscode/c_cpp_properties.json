@@ -11,7 +11,8 @@
             "cppStandard": "c++17",
             "intelliSenseMode": "linux-clang-x64",
             "defines": [
-                "STM32F722xx"
+                "STM32F722xx",
+                "BOOTLOADER"
             ]
         }
     ],

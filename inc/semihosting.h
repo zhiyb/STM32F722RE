@@ -24,3 +24,10 @@ static inline void dbg_puts(const char *str)
 } while (0)
 
 #define TODO()  DBG_BKPT("TODO")
+
+#define PANIC(str)  do { \
+    DBG_BKPT(str); \
+    for (;;) dbg_bkpt(); \
+} while (0)
+
+void panic_init();
