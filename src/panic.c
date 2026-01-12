@@ -4,7 +4,7 @@
 
 void panic_init()
 {
-	uint32_t pg = NVIC_GetPriorityGrouping();
+    uint32_t pg = NVIC_GetPriorityGrouping();
 
     // Enable Memory Management Fault
     NVIC_SetPriority(MemoryManagement_IRQn, NVIC_EncodePriority(pg, NvicPriorityFault, 0));

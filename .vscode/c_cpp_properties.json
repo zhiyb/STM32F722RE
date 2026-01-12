@@ -4,6 +4,7 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/cmsis",
+                "${workspaceFolder}/hal",
                 "${workspaceFolder}/inc"
             ],
             "compilerPath": "/usr/bin/clang",

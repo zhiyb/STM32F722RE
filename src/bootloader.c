@@ -20,8 +20,8 @@ static void rcc_init()
     while (RCC->CR & RCC_CR_PLLRDY);
     // Configure PLL (HSE, PLLM = 12, PLLN = 270, PLLP = 2, PLLQ = 9)
     RCC->PLLCFGR = (12u << RCC_PLLCFGR_PLLM_Pos) | (270u << RCC_PLLCFGR_PLLN_Pos) |
-            (0u << RCC_PLLCFGR_PLLP_Pos) | (9u << RCC_PLLCFGR_PLLQ_Pos) |
-            RCC_PLLCFGR_PLLSRC_HSE;
+        (0u << RCC_PLLCFGR_PLLP_Pos) | (9u << RCC_PLLCFGR_PLLQ_Pos) |
+        RCC_PLLCFGR_PLLSRC_HSE;
     // Enable power controller
     RCC->APB1ENR = RCC_APB1ENR_PWREN;
     // Regulator voltage scale 1
@@ -39,7 +39,7 @@ static void rcc_init()
     // Set AHB & APB prescalers
     // AHB = 1, APB1 = 4, APB2 = 2
     RCC->CFGR = (RCC->CFGR & ~(RCC_CFGR_HPRE | RCC_CFGR_PPRE1 | RCC_CFGR_PPRE2)) |
-            RCC_CFGR_HPRE_DIV1 | RCC_CFGR_PPRE1_DIV4 | RCC_CFGR_PPRE2_DIV2;
+        RCC_CFGR_HPRE_DIV1 | RCC_CFGR_PPRE1_DIV4 | RCC_CFGR_PPRE2_DIV2;
     // Wait for PLL lock
     while (!(RCC->CR & RCC_CR_PLLRDY));
     // Switch to PLL
@@ -50,7 +50,7 @@ static void rcc_init()
     // Enable clock output for USB3370 PHY
     // MCO1: HSE / 1
     RCC->CFGR = (RCC->CFGR & ~(RCC_CFGR_MCO1 | RCC_CFGR_MCO1PRE)) |
-            (0b10 << RCC_CFGR_MCO1_Pos) | (0 << RCC_CFGR_MCO1PRE_Pos);
+        (0b10 << RCC_CFGR_MCO1_Pos) | (0 << RCC_CFGR_MCO1PRE_Pos);
 }
 
 static void board_init()
@@ -71,7 +71,7 @@ static void board_init()
 
     // Enable peripherals
     RCC->AHB1ENR = RCC_AHB1ENR_OTGHSULPIEN_Msk | RCC_AHB1ENR_OTGHSEN_Msk | RCC_AHB1ENR_DTCMRAMEN_Msk |
-            RCC_AHB1ENR_GPIOAEN_Msk | RCC_AHB1ENR_GPIOBEN_Msk | RCC_AHB1ENR_GPIOCEN_Msk;
+        RCC_AHB1ENR_GPIOAEN_Msk | RCC_AHB1ENR_GPIOBEN_Msk | RCC_AHB1ENR_GPIOCEN_Msk;
     RCC->AHB2ENR = RCC_AHB2ENR_OTGFSEN_Msk;
     RCC->APB2ENR = RCC_APB2ENR_SYSCFGEN_Msk;
 
@@ -104,49 +104,49 @@ static void board_init()
     // 10: Alternative function mode
     // 11: Analog mode
     GPIOA->MODER =
-            (0b11ul << GPIO_MODER_MODER0_Pos)  | (0b11ul << GPIO_MODER_MODER1_Pos)  |
-            (0b11ul << GPIO_MODER_MODER2_Pos)  | (0b10ul << GPIO_MODER_MODER3_Pos)  |
-            (0b11ul << GPIO_MODER_MODER4_Pos)  | (0b10ul << GPIO_MODER_MODER5_Pos)  |
-            (0b11ul << GPIO_MODER_MODER6_Pos)  | (0b11ul << GPIO_MODER_MODER7_Pos)  |
-            (0b10ul << GPIO_MODER_MODER8_Pos)  | (0b11ul << GPIO_MODER_MODER9_Pos)  |
-            (0b11ul << GPIO_MODER_MODER10_Pos) | (0b10ul << GPIO_MODER_MODER11_Pos) |
-            (0b10ul << GPIO_MODER_MODER12_Pos) | (0b10ul << GPIO_MODER_MODER13_Pos) |
-            (0b10ul << GPIO_MODER_MODER14_Pos) | (0b11ul << GPIO_MODER_MODER15_Pos);
+        (0b11ul << GPIO_MODER_MODER0_Pos)  | (0b11ul << GPIO_MODER_MODER1_Pos)  |
+        (0b11ul << GPIO_MODER_MODER2_Pos)  | (0b10ul << GPIO_MODER_MODER3_Pos)  |
+        (0b11ul << GPIO_MODER_MODER4_Pos)  | (0b10ul << GPIO_MODER_MODER5_Pos)  |
+        (0b11ul << GPIO_MODER_MODER6_Pos)  | (0b11ul << GPIO_MODER_MODER7_Pos)  |
+        (0b10ul << GPIO_MODER_MODER8_Pos)  | (0b11ul << GPIO_MODER_MODER9_Pos)  |
+        (0b11ul << GPIO_MODER_MODER10_Pos) | (0b10ul << GPIO_MODER_MODER11_Pos) |
+        (0b10ul << GPIO_MODER_MODER12_Pos) | (0b10ul << GPIO_MODER_MODER13_Pos) |
+        (0b10ul << GPIO_MODER_MODER14_Pos) | (0b11ul << GPIO_MODER_MODER15_Pos);
     GPIOB->MODER =
-            (0b10ul << GPIO_MODER_MODER0_Pos)  | (0b10ul << GPIO_MODER_MODER1_Pos)  |
-            (0b11ul << GPIO_MODER_MODER2_Pos)  | (0b11ul << GPIO_MODER_MODER3_Pos)  |
-            (0b11ul << GPIO_MODER_MODER4_Pos)  | (0b10ul << GPIO_MODER_MODER5_Pos)  |
-            (0b10ul << GPIO_MODER_MODER6_Pos)  | (0b10ul << GPIO_MODER_MODER7_Pos)  |
-            (0b11ul << GPIO_MODER_MODER8_Pos)  | (0b11ul << GPIO_MODER_MODER9_Pos)  |
-            (0b10ul << GPIO_MODER_MODER10_Pos) | (0b10ul << GPIO_MODER_MODER11_Pos) |
-            (0b10ul << GPIO_MODER_MODER12_Pos) | (0b10ul << GPIO_MODER_MODER13_Pos) |
-            (0b11ul << GPIO_MODER_MODER14_Pos) | (0b11ul << GPIO_MODER_MODER15_Pos);
+        (0b10ul << GPIO_MODER_MODER0_Pos)  | (0b10ul << GPIO_MODER_MODER1_Pos)  |
+        (0b11ul << GPIO_MODER_MODER2_Pos)  | (0b11ul << GPIO_MODER_MODER3_Pos)  |
+        (0b11ul << GPIO_MODER_MODER4_Pos)  | (0b10ul << GPIO_MODER_MODER5_Pos)  |
+        (0b10ul << GPIO_MODER_MODER6_Pos)  | (0b10ul << GPIO_MODER_MODER7_Pos)  |
+        (0b11ul << GPIO_MODER_MODER8_Pos)  | (0b11ul << GPIO_MODER_MODER9_Pos)  |
+        (0b10ul << GPIO_MODER_MODER10_Pos) | (0b10ul << GPIO_MODER_MODER11_Pos) |
+        (0b10ul << GPIO_MODER_MODER12_Pos) | (0b10ul << GPIO_MODER_MODER13_Pos) |
+        (0b11ul << GPIO_MODER_MODER14_Pos) | (0b11ul << GPIO_MODER_MODER15_Pos);
     GPIOC->MODER =
-            (0b10ul << GPIO_MODER_MODER0_Pos)  | (0b11ul << GPIO_MODER_MODER1_Pos)  |
-            (0b10ul << GPIO_MODER_MODER2_Pos)  | (0b10ul << GPIO_MODER_MODER3_Pos)  |
-            (0b11ul << GPIO_MODER_MODER4_Pos)  | (0b11ul << GPIO_MODER_MODER5_Pos)  |
-            (0b11ul << GPIO_MODER_MODER6_Pos)  | (0b11ul << GPIO_MODER_MODER7_Pos)  |
-            (0b11ul << GPIO_MODER_MODER8_Pos)  | (0b11ul << GPIO_MODER_MODER9_Pos)  |
-            (0b11ul << GPIO_MODER_MODER10_Pos) | (0b11ul << GPIO_MODER_MODER11_Pos) |
-            (0b11ul << GPIO_MODER_MODER12_Pos) | (0b11ul << GPIO_MODER_MODER13_Pos) |
-            (0b11ul << GPIO_MODER_MODER14_Pos) | (0b11ul << GPIO_MODER_MODER15_Pos);
+        (0b10ul << GPIO_MODER_MODER0_Pos)  | (0b11ul << GPIO_MODER_MODER1_Pos)  |
+        (0b10ul << GPIO_MODER_MODER2_Pos)  | (0b10ul << GPIO_MODER_MODER3_Pos)  |
+        (0b11ul << GPIO_MODER_MODER4_Pos)  | (0b11ul << GPIO_MODER_MODER5_Pos)  |
+        (0b11ul << GPIO_MODER_MODER6_Pos)  | (0b11ul << GPIO_MODER_MODER7_Pos)  |
+        (0b11ul << GPIO_MODER_MODER8_Pos)  | (0b11ul << GPIO_MODER_MODER9_Pos)  |
+        (0b11ul << GPIO_MODER_MODER10_Pos) | (0b11ul << GPIO_MODER_MODER11_Pos) |
+        (0b11ul << GPIO_MODER_MODER12_Pos) | (0b11ul << GPIO_MODER_MODER13_Pos) |
+        (0b11ul << GPIO_MODER_MODER14_Pos) | (0b11ul << GPIO_MODER_MODER15_Pos);
     GPIOA->OTYPER = 0;
     GPIOB->OTYPER = GPIO_OTYPER_OT6_Msk | GPIO_OTYPER_OT7_Msk;
     GPIOC->OTYPER = 0;
     GPIOA->OSPEEDR =
-            (0b10ul << GPIO_OSPEEDR_OSPEEDR3_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR5_Pos) |
-            (0b01ul << GPIO_OSPEEDR_OSPEEDR8_Pos) | (0b01ul << GPIO_OSPEEDR_OSPEEDR11_Pos) |
-            (0b01ul << GPIO_OSPEEDR_OSPEEDR12_Pos) |
-            (0b10ul << GPIO_OSPEEDR_OSPEEDR13_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR14_Pos);
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR3_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR5_Pos) |
+        (0b01ul << GPIO_OSPEEDR_OSPEEDR8_Pos) | (0b01ul << GPIO_OSPEEDR_OSPEEDR11_Pos) |
+        (0b01ul << GPIO_OSPEEDR_OSPEEDR12_Pos) |
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR13_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR14_Pos);
     GPIOB->OSPEEDR =
-            (0b10ul << GPIO_OSPEEDR_OSPEEDR0_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR1_Pos) |
-            (0b10ul << GPIO_OSPEEDR_OSPEEDR5_Pos) |
-            (0b00ul << GPIO_OSPEEDR_OSPEEDR6_Pos) | (0b00ul << GPIO_OSPEEDR_OSPEEDR7_Pos) |
-            (0b10ul << GPIO_OSPEEDR_OSPEEDR10_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR11_Pos) |
-            (0b10ul << GPIO_OSPEEDR_OSPEEDR12_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR13_Pos);
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR0_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR1_Pos) |
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR5_Pos) |
+        (0b00ul << GPIO_OSPEEDR_OSPEEDR6_Pos) | (0b00ul << GPIO_OSPEEDR_OSPEEDR7_Pos) |
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR10_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR11_Pos) |
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR12_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR13_Pos);
     GPIOC->OSPEEDR =
-            (0b10ul << GPIO_OSPEEDR_OSPEEDR0_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR2_Pos) |
-            (0b10ul << GPIO_OSPEEDR_OSPEEDR3_Pos);
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR0_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR2_Pos) |
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR3_Pos);
     GPIOA->PUPDR = (0b01ul << GPIO_PUPDR_PUPDR13_Pos) | (0b10ul << GPIO_PUPDR_PUPDR14_Pos);
     GPIOB->PUPDR = 0;
     GPIOC->PUPDR = 0;
@@ -159,21 +159,21 @@ static void board_init()
 #define GPIO_AFRH_AFRH14_Pos GPIO_AFRH_AFRH6_Pos
 #define GPIO_AFRH_AFRH15_Pos GPIO_AFRH_AFRH7_Pos
     GPIOA->AFR[0] =
-            (10ul << GPIO_AFRL_AFRL3_Pos) | (10ul << GPIO_AFRL_AFRL5_Pos);
+        (10ul << GPIO_AFRL_AFRL3_Pos) | (10ul << GPIO_AFRL_AFRL5_Pos);
     GPIOA->AFR[1] =
-            (0ul << GPIO_AFRH_AFRH8_Pos) |
-            (10ul << GPIO_AFRH_AFRH11_Pos) | (10ul << GPIO_AFRH_AFRH12_Pos) |
-            (0ul << GPIO_AFRH_AFRH13_Pos) | (0ul << GPIO_AFRH_AFRH14_Pos);
+        (0ul << GPIO_AFRH_AFRH8_Pos) |
+        (10ul << GPIO_AFRH_AFRH11_Pos) | (10ul << GPIO_AFRH_AFRH12_Pos) |
+        (0ul << GPIO_AFRH_AFRH13_Pos) | (0ul << GPIO_AFRH_AFRH14_Pos);
     GPIOB->AFR[0] =
-            (10ul << GPIO_AFRL_AFRL0_Pos) | (10ul << GPIO_AFRL_AFRL1_Pos) |
-            (10ul << GPIO_AFRL_AFRL5_Pos) |
-            (4ul << GPIO_AFRL_AFRL6_Pos) | (4ul << GPIO_AFRL_AFRL7_Pos);
+        (10ul << GPIO_AFRL_AFRL0_Pos) | (10ul << GPIO_AFRL_AFRL1_Pos) |
+        (10ul << GPIO_AFRL_AFRL5_Pos) |
+        (4ul << GPIO_AFRL_AFRL6_Pos) | (4ul << GPIO_AFRL_AFRL7_Pos);
     GPIOB->AFR[1] =
-            (10ul << GPIO_AFRH_AFRH10_Pos) | (10ul << GPIO_AFRH_AFRH11_Pos) |
-            (10ul << GPIO_AFRH_AFRH12_Pos) | (10ul << GPIO_AFRH_AFRH13_Pos);
+        (10ul << GPIO_AFRH_AFRH10_Pos) | (10ul << GPIO_AFRH_AFRH11_Pos) |
+        (10ul << GPIO_AFRH_AFRH12_Pos) | (10ul << GPIO_AFRH_AFRH13_Pos);
     GPIOC->AFR[0] =
-            (10ul << GPIO_AFRL_AFRL0_Pos) | (10ul << GPIO_AFRL_AFRL2_Pos) |
-            (10ul << GPIO_AFRL_AFRL3_Pos);
+        (10ul << GPIO_AFRL_AFRL0_Pos) | (10ul << GPIO_AFRL_AFRL2_Pos) |
+        (10ul << GPIO_AFRL_AFRL3_Pos);
     GPIOC->AFR[1] = 0;
     // Wait for IO compensation cell
     while (!(SYSCFG->CMPCR & SYSCFG_CMPCR_READY_Msk));

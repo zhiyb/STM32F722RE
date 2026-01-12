@@ -66,37 +66,37 @@ void usb_hw_init(usb_if_t usb_if)
     USB_OTG_GlobalTypeDef *hw_g = HW_G(hw->base);
     USB_OTG_DeviceTypeDef *hw_dev = HW_DEV(hw->base);
 
-	// Wait for AHB bus transactions
-	while (!(hw_g->GRSTCTL & USB_OTG_GRSTCTL_AHBIDL_Msk));
-	// Core reset
-	hw_g->GRSTCTL |= USB_OTG_GRSTCTL_CSRST_Msk;
-	while (hw_g->GRSTCTL & USB_OTG_GRSTCTL_CSRST_Msk);
+    // Wait for AHB bus transactions
+    while (!(hw_g->GRSTCTL & USB_OTG_GRSTCTL_AHBIDL_Msk));
+    // Core reset
+    hw_g->GRSTCTL |= USB_OTG_GRSTCTL_CSRST_Msk;
+    while (hw_g->GRSTCTL & USB_OTG_GRSTCTL_CSRST_Msk);
 
-	// OTG version 1.3 is obsolete, select version 2.0
+    // OTG version 1.3 is obsolete, select version 2.0
     // Override B-session (device) valid
     // Override A-session (host) invalid
     // Override V_BUS valid
-	hw_g->GOTGCTL = USB_OTG_GOTGCTL_OTGVER_Msk |
-            USB_OTG_GOTGCTL_BVALOVAL_Msk | USB_OTG_GOTGCTL_BVALOEN_Msk |
-            USB_OTG_GOTGCTL_AVALOEN_Msk |
-            USB_OTG_GOTGCTL_VBVALOVAL_Msk | USB_OTG_GOTGCTL_VBVALOEN_Msk;
-	// Enable LPM errata behaviour, L1 deep/shallow sleep enable, LPM disable
-	hw_g->GLPMCFG = USB_OTG_GLPMCFG_ENBESL_Msk | USB_OTG_GLPMCFG_LPMEN_Msk |
-			USB_OTG_GLPMCFG_L1DSEN_Msk | USB_OTG_GLPMCFG_L1SSEN_Msk;
+    hw_g->GOTGCTL = USB_OTG_GOTGCTL_OTGVER_Msk |
+        USB_OTG_GOTGCTL_BVALOVAL_Msk | USB_OTG_GOTGCTL_BVALOEN_Msk |
+        USB_OTG_GOTGCTL_AVALOEN_Msk |
+        USB_OTG_GOTGCTL_VBVALOVAL_Msk | USB_OTG_GOTGCTL_VBVALOEN_Msk;
+    // Enable LPM errata behaviour, L1 deep/shallow sleep enable, LPM disable
+    hw_g->GLPMCFG = USB_OTG_GLPMCFG_ENBESL_Msk | USB_OTG_GLPMCFG_LPMEN_Msk |
+        USB_OTG_GLPMCFG_L1DSEN_Msk | USB_OTG_GLPMCFG_L1SSEN_Msk;
     if (usb_if == UsbIfHs) {
         // VBUS detection disabled, USB HS PHY enabled
         hw_g->GCCFG = 0;
         // Force device mode, TRDT = 9, HNP and SRP not capable, external ULPI HS PHY
         hw_g->GUSBCFG = USB_OTG_GUSBCFG_FDMOD_Msk | USB_OTG_GUSBCFG_ULPI_UTMI_SEL_Msk |
-                // USB_OTG_GUSBCFG_HNPCAP_Msk | USB_OTG_GUSBCFG_SRPCAP_Msk |
-                (9 << USB_OTG_GUSBCFG_TRDT_Pos) | (4 << USB_OTG_GUSBCFG_TOCAL_Pos);
+            // USB_OTG_GUSBCFG_HNPCAP_Msk | USB_OTG_GUSBCFG_SRPCAP_Msk |
+            (9 << USB_OTG_GUSBCFG_TRDT_Pos) | (4 << USB_OTG_GUSBCFG_TOCAL_Pos);
     } else {
         // VBUS detection disabled, USB FS PHY enabled
         hw_g->GCCFG = USB_OTG_GCCFG_PWRDWN_Msk;
         // Force device mode, TRDT = 6, HNP and SRP not capable
         hw_g->GUSBCFG = USB_OTG_GUSBCFG_FDMOD_Msk |
-                // USB_OTG_GUSBCFG_HNPCAP_Msk | USB_OTG_GUSBCFG_SRPCAP_Msk |
-                (6 << USB_OTG_GUSBCFG_TRDT_Pos) | (0 << USB_OTG_GUSBCFG_TOCAL_Pos);
+            // USB_OTG_GUSBCFG_HNPCAP_Msk | USB_OTG_GUSBCFG_SRPCAP_Msk |
+            (6 << USB_OTG_GUSBCFG_TRDT_Pos) | (0 << USB_OTG_GUSBCFG_TOCAL_Pos);
     }
 
     // Initialise in disconnected state
@@ -107,12 +107,12 @@ void usb_hw_init(usb_if_t usb_if)
         // Allocate 25% for iso IN DMA, enable transceiver delay, enumerate HS,
         // ignore zero-length status OUT packets
         hw_dev->DCFG = (0b00ul << USB_OTG_DCFG_PERSCHIVL_Pos) | (1ul << 14 /* XCVRDLY */) |
-                (1ul << USB_OTG_DCFG_NZLSOHSK_Msk);
+            (1ul << USB_OTG_DCFG_NZLSOHSK_Msk);
 #if 0
         // Data transfer threshold
         hw_dev->DTHRCTL = (32u << USB_OTG_DTHRCTL_RXTHRLEN_Pos) | (32u << USB_OTG_DTHRCTL_TXTHRLEN_Pos) |
-                USB_OTG_DTHRCTL_RXTHREN_Msk | USB_OTG_DTHRCTL_ISOTHREN_Msk |
-                USB_OTG_DTHRCTL_NONISOTHREN_Msk | USB_OTG_DTHRCTL_ARPEN_Msk;
+            USB_OTG_DTHRCTL_RXTHREN_Msk | USB_OTG_DTHRCTL_ISOTHREN_Msk |
+            USB_OTG_DTHRCTL_NONISOTHREN_Msk | USB_OTG_DTHRCTL_ARPEN_Msk;
 #else
         // Disable thresholding
         hw_dev->DTHRCTL = 0;
@@ -124,7 +124,7 @@ void usb_hw_init(usb_if_t usb_if)
     } else {
         // Enumerate FS, ignore zero-length status OUT packets
         hw_dev->DCFG = (0b11ul << USB_OTG_DCFG_DSPD_Pos) |
-                (1ul << USB_OTG_DCFG_NZLSOHSK_Msk);
+            (1ul << USB_OTG_DCFG_NZLSOHSK_Msk);
         // No DMA
         hw_g->GAHBCFG = 0;
     }
@@ -135,13 +135,13 @@ void usb_hw_init(usb_if_t usb_if)
     uint32_t gint = hw->use_dma ? 0 : USB_OTG_GINTSTS_RXFLVL_Msk;
     // Enable global interrupts: reset, enumeration, OUT and IN endpoints
     hw_g->GINTSTS = gint | USB_OTG_GINTSTS_USBRST_Msk | USB_OTG_GINTSTS_ENUMDNE_Msk;
-	hw_g->GINTMSK = gint | USB_OTG_GINTMSK_USBRST_Msk | USB_OTG_GINTMSK_ENUMDNEM_Msk |
+    hw_g->GINTMSK = gint | USB_OTG_GINTMSK_USBRST_Msk | USB_OTG_GINTMSK_ENUMDNEM_Msk |
         USB_OTG_GINTMSK_OEPINT_Msk | USB_OTG_GINTMSK_IEPINT_Msk;
-	// Unmask interrupts
-	hw_g->GAHBCFG |= USB_OTG_GAHBCFG_GINT_Msk /* GINTMSK */;
+    // Unmask interrupts
+    hw_g->GAHBCFG |= USB_OTG_GAHBCFG_GINT_Msk /* GINTMSK */;
 
-	// Setup NVIC interrupts
-	uint32_t pg = NVIC_GetPriorityGrouping();
+    // Setup NVIC interrupts
+    uint32_t pg = NVIC_GetPriorityGrouping();
     if (usb_if == UsbIfHs) {
         NVIC_SetPriority(OTG_HS_IRQn,
             NVIC_EncodePriority(pg, NvicPriorityUsbHsLP, 0));

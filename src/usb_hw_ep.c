@@ -120,8 +120,8 @@ void usb_hw_ep_in_continue(usb_if_t usb_if, uint8_t ep)
 
     hw_ep_in->DIEPTSIZ = (1 << USB_OTG_DIEPTSIZ_PKTCNT_Pos) | (pkt_len << USB_OTG_DIEPTSIZ_XFRSIZ_Pos);
     hw_ep_in->DIEPCTL = ((hw_ep_in->DIEPCTL) & (USB_OTG_DIEPCTL_TXFNUM_Msk | USB_OTG_DIEPCTL_MPSIZ_Msk |
-            USB_OTG_DIEPCTL_EPTYP_Msk)) | USB_OTG_DIEPCTL_CNAK_Msk |
-            USB_OTG_DIEPCTL_EPENA_Msk | USB_OTG_DIEPCTL_USBAEP_Msk;
+        USB_OTG_DIEPCTL_EPTYP_Msk)) | USB_OTG_DIEPCTL_CNAK_Msk |
+        USB_OTG_DIEPCTL_EPENA_Msk | USB_OTG_DIEPCTL_USBAEP_Msk;
 
     uint32_t *p = usb->ep[ep].in.p;
     usb->ep[ep].in.p += pkt_len;
@@ -149,7 +149,7 @@ void usb_hw_ep_in_stall(usb_if_t usb_if, uint8_t ep)
     if (hw_ep_in->DIEPCTL & USB_OTG_DIEPCTL_EPENA_Msk)
         PANIC("EP not idle");
     hw_ep_in->DIEPCTL = ((hw_ep_in->DIEPCTL) & (USB_OTG_DIEPCTL_TXFNUM_Msk | USB_OTG_DIEPCTL_MPSIZ_Msk |
-            USB_OTG_DIEPCTL_EPTYP_Msk)) | USB_OTG_DIEPCTL_STALL_Msk | USB_OTG_DIEPCTL_USBAEP_Msk;
+        USB_OTG_DIEPCTL_EPTYP_Msk)) | USB_OTG_DIEPCTL_STALL_Msk | USB_OTG_DIEPCTL_USBAEP_Msk;
 }
 
 // void usb_hw_ep_tx_stall(uint8_t ep)

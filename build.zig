@@ -149,6 +149,7 @@ pub fn build(b: *std.Build) void {
         // C include paths
         inline for (.{
             "cmsis",
+            "hal",
             "inc",
         }) |inc| {
             exe.addIncludePath(b.path(inc));
