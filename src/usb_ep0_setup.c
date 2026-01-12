@@ -2,6 +2,7 @@
 #include "macros.h"
 #include "usb.h"
 #include "usb_internal.h"
+#include "usb_dfu.h"
 
 typedef struct PACKED {
     union {
@@ -92,6 +93,25 @@ void usb_ep0_setup(usb_if_t usb_if)
         // Standard interface request
     case 0x21:
         // Class interface request
+#ifdef BOOTLOADER
+        if (usb_dfu_state() >= UsbDfuState_dfuIDLE) {
+            switch (setup->wIndex) {
+            case UsbInterfaceDfuMode:
+                ret = usb_dfu_setup(&usb->dfu, setup);
+                break;
+            default:
+                DBG_BKPT("Unknown Interface");
+            }
+        } else {
+            switch (setup->wIndex) {
+            case UsbInterfaceDfuRT:
+                ret = usb_dfu_setup(&usb->dfu, setup);
+                break;
+            default:
+                DBG_BKPT("Unknown Interface");
+            }
+        }
+#else
         switch (setup->wIndex) {
 #if USB_ALT_IF == USB_ALT_IF_HID
         case UsbInterfaceHid:
@@ -103,12 +123,10 @@ void usb_ep0_setup(usb_if_t usb_if)
             ret = usb_cdc_setup(setup);
             break;
 #endif
-        case UsbInterfaceDfuRT:
-            ret = usb_dfu_setup(&usb->dfu, setup);
-            break;
         default:
             DBG_BKPT("Unknown Interface");
         }
+#endif
         break;
 
 //     case 0x20:

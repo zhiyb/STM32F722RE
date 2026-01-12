@@ -70,6 +70,7 @@ const void *usb_dfu_setup(usb_dfu_t *dfu, setup_t *setup)
         const void *p = flash_uf2_read_block(setup->wValue);
         if (!p) {
             setup->wLength = 0;
+            usb_dfu.status.bState = UsbDfuState_dfuIDLE;
             return 0;
         } else {
             setup->wLength = MIN(setup->wLength, 512);

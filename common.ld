@@ -1,15 +1,21 @@
 /* Top of stack at end of RAM space */
 __stack_end = ORIGIN(RAM) + LENGTH(RAM);
 
+/* Firmware data region */
+__firmware_start = ORIGIN(FW_AXIM);
+__firmware_end   = __firmware_start + LENGTH(FW_AXIM);
+
 /* Define output sections */
 SECTIONS
 {
-  /* The startup code goes first into EXEC */
+  /* Firmware header and interrupt vector table goes first into EXEC */
   . = ALIGN(4);
-  .isr_vector :
+  .header :
   {
+    KEEP(*(.fw_header))
+    . = ALIGN(4);
     __isr_vector_start = .;
-    KEEP(*(.isr_vector)) /* Startup code */
+    KEEP(*(.isr_vector))
     . = ALIGN(4);
   } >EXEC AT> LOAD
 

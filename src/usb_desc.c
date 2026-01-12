@@ -441,6 +441,7 @@ const uint8_t *usb_desc_get(uint8_t *desc_buf, uint8_t type, uint8_t index, uint
 {
     switch (type) {
     case DESC_TYPE_DEVICE:
+#ifdef BOOTLOADER
         if (usb_dfu_state() >= UsbDfuState_dfuIDLE) {
             *len = sizeof(desc_dfu_device);
             return (const uint8_t *)&desc_dfu_device;
@@ -448,7 +449,12 @@ const uint8_t *usb_desc_get(uint8_t *desc_buf, uint8_t type, uint8_t index, uint
             *len = sizeof(desc_device);
             return (const uint8_t *)&desc_device;
         }
+#else
+        *len = sizeof(desc_device);
+        return (const uint8_t *)&desc_device;
+#endif
     case DESC_TYPE_CONFIGURATION:
+#ifdef BOOTLOADER
         if (usb_dfu_state() >= UsbDfuState_dfuIDLE) {
             *len = sizeof(desc_dfu_configuration);
             return (const uint8_t *)&desc_dfu_configuration;
@@ -456,6 +462,10 @@ const uint8_t *usb_desc_get(uint8_t *desc_buf, uint8_t type, uint8_t index, uint
             *len = sizeof(desc_configuration);
             return (const uint8_t *)&desc_configuration;
         }
+#else
+        *len = sizeof(desc_configuration);
+        return (const uint8_t *)&desc_configuration;
+#endif
     case DESC_TYPE_DEVICE_QUALIFIER:
         // Not a high speed device, not supported
         return 0;

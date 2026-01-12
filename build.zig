@@ -101,21 +101,24 @@ pub fn build(b: *std.Build) void {
     fw_exe.addCSourceFiles(.{
         .files = &(target_c_sources ++ .{
             "src/main.c",
+            "src/panic.c",
+            "src/log.c",
             "src/systick.c",
-            // "src/log.c",
+            "src/flash.c",
+            "src/usb.c",
+            "src/usb_hw.c",
+            "src/usb_hw_ep.c",
+            "src/usb_ep0_setup.c",
+            "src/usb_desc.c",
             // "src/dma.c",
             // "src/uart.c",
-            // "src/usb_hw.c",
-            // "src/usb_hw_ep.c",
-            // "src/usb_ep0_setup.c",
-            // "src/usb_desc.c",
             // "src/usb_hid.c",
             // "src/usb_cdc.c",
         }),
         .flags = &(target_flags ++ .{}),
     });
 
-    fw_exe.setLinkerScript(b.path("STM32F722RE_FW_AXIM.ld"));
+    fw_exe.setLinkerScript(b.path("STM32F722RE_FW_ITCM.ld"));
 
     // Bootloader
     const bl_exe = b.addExecutable(.{

@@ -2,6 +2,28 @@
 #include "macros.h"
 #include "flash.h"
 
+typedef union PACKED {
+    uint8_t data[256];
+    uint32_t u32[];
+    struct PACKED {
+        uint32_t header_size;
+        uint32_t version;
+        void (*entry)();
+        uint32_t ext_tag[61];
+    };
+} flash_header_t;
+
+#ifndef BOOTLOADER
+extern void Reset_Handler();
+
+static const flash_header_t fw_header USED SECTION(.fw_header) = {
+    .header_size = 4 * 3,
+    .version = -1,
+    .entry = &Reset_Handler,
+    .ext_tag = {0},
+};
+#endif
+
 typedef enum {
     // not main flash
     // this block should be skipped when writing the device flash;
@@ -63,16 +85,13 @@ static struct {
             uint32_t magicEnd;
         } uf2;
     };
-    uint32_t data_len;
+    uint32_t fw_len;
 } flash;
 
-typedef union PACKED {
-    uint8_t data[256];
-    struct PACKED {
-        uint32_t version;
-        uint32_t ext_tag[];
-    };
-} flash_header_t;
+static const uint32_t uf2_block_size = sizeof(flash.uf2.data);
+
+extern char __firmware_start;
+extern char __firmware_end;
 
 static void flash_uf2_read_init()
 {
@@ -82,13 +101,27 @@ static void flash_uf2_read_init()
     flash.uf2.targetAddr = 0;
     flash.uf2.payloadSize = 0;  // Extension tags only
     flash.uf2.blockNo = 0;
-    flash.uf2.numBlocks = 1;    // TODO
+    flash.uf2.numBlocks = 1;
     flash.uf2.familyID = Uf2FamilyId_STM32F7;
     flash.uf2.magicEnd = 0x0AB16F30;
 
     uint32_t *p = (uint32_t *)&flash.uf2.data[0];
     for (uint32_t i = 0; i < sizeof(flash.uf2.data) / 4; i++)
         p[i] = 0;
+
+    uint32_t fw_start = (uint32_t)&__firmware_start;
+    uint32_t fw_last = (uint32_t)&__firmware_end - 4;
+    while (fw_last >= fw_start && *(volatile uint32_t *)fw_last == 0xffffffff)
+        fw_last -= 4;
+    flash.fw_len = fw_last + 4 - fw_start;
+    flash.uf2.numBlocks += (flash.fw_len + uf2_block_size - 1) / uf2_block_size;
+
+    flash_header_t *fw_hdr = (flash_header_t *)fw_start;
+    if (fw_hdr->header_size <= sizeof(flash_header_t)) {
+        flash.uf2.payloadSize = fw_hdr->header_size;
+        for (uint32_t i = 0; i < (fw_hdr->header_size + 3) / 4; i++)
+            p[i] = fw_hdr->u32[i];
+    }
 }
 
 const void *flash_uf2_read_block(uint32_t block)
@@ -97,5 +130,23 @@ const void *flash_uf2_read_block(uint32_t block)
         flash_uf2_read_init();
         return &flash.uf2;
     }
-    return 0;
+
+    uint32_t offset = (block - 1) * uf2_block_size;
+    if (offset >= flash.fw_len)
+        return 0;
+
+    flash.uf2.flags = Uf2Flag_FamilyIDPresent;
+    volatile uint32_t *src = (volatile uint32_t *)((uint32_t)&__firmware_start + offset);
+    flash.uf2.targetAddr = (uint32_t)src;
+    uint32_t block_size = flash.fw_len - offset;
+    block_size = MIN(block_size, uf2_block_size);
+    flash.uf2.payloadSize = block_size;
+    flash.uf2.blockNo = block;
+    uint32_t *dst = (uint32_t *)&flash.uf2.data[0];
+    uint32_t i;
+    for (i = 0; i < block_size / 4; i++)
+        dst[i] = src[i];
+    for (; i < uf2_block_size / 4; i++)
+        dst[i] = 0xffffffff;
+    return &flash.uf2;
 }
