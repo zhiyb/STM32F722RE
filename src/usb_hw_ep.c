@@ -21,16 +21,16 @@ static uint8_t usb_hw_ep_fifo_alloc(usb_if_t usb_if, uint32_t size)
     if (usb->hw.fifo_top > usb->hw_info->ram_size / 4)
         PANIC("USB RAM out of space");
 
-	switch (num) {
-	case 0:		// Rx FIFO
-		hw_g->GRXFSIZ = size << USB_OTG_GRXFSIZ_RXFD_Pos;
-		break;
-	case 1:		// Tx endpoint 0
-		hw_g->DIEPTXF0_HNPTXFSIZ = DIEPTXF(addr, size);
-		break;
-	default:	// Other Tx endpoints
-		hw_g->DIEPTXF[num - 2] = DIEPTXF(addr, size);
-	}
+    switch (num) {
+    case 0:		// Rx FIFO
+        hw_g->GRXFSIZ = size << USB_OTG_GRXFSIZ_RXFD_Pos;
+        break;
+    case 1:		// Tx endpoint 0
+        hw_g->DIEPTXF0_HNPTXFSIZ = DIEPTXF(addr, size);
+        break;
+    default:	// Other Tx endpoints
+        hw_g->DIEPTXF[num - 2] = DIEPTXF(addr, size);
+    }
     return num - 1;
 }
 
@@ -57,23 +57,25 @@ void usb_hw_ep_init(usb_if_t usb_if)
     USB_OTG_INEndpointTypeDef *hw_ep_in = HW_EP_IN(hw->base, 0);
     uint32_t epsize = usb_if == UsbIfHs ? 64 : 0;
     usb->ep[0].in.max_size = 64;
+    // uint32_t epdis = hw_ep_in->DIEPCTL & USB_OTG_DIEPCTL_EPENA_Msk ? USB_OTG_DIEPCTL_EPDIS_Msk : 0;
     hw_ep_in->DIEPCTL = (fifo << USB_OTG_DIEPCTL_TXFNUM_Pos) | (epsize << USB_OTG_DIEPCTL_MPSIZ_Pos);
     daintmsk |= 1 << (USB_OTG_DAINTMSK_IEPM_Pos + 0);
 
     // OUT endpoint 0
-    USB_OTG_OUTEndpointTypeDef *hw_ep_out = HW_EP_OUT(hw->base, 0);
+    // USB_OTG_OUTEndpointTypeDef *hw_ep_out = HW_EP_OUT(hw->base, 0);
+    // epdis = hw_ep_out->DOEPCTL & USB_OTG_DOEPCTL_EPENA_Msk ? USB_OTG_DOEPCTL_EPDIS_Msk : 0;
     usb->ep[0].out.max_size = 64;
     daintmsk |= 1 << (USB_OTG_DAINTMSK_OEPM_Pos + 0);
 
     usb_ep0_init(usb_if);
 
-	// Interrupt and event masks
+    // Interrupt and event masks
     hw_dev->DAINTMSK = daintmsk;
-	// OUT: Transfer complete, setup done, status phase
-	hw_dev->DOEPMSK = USB_OTG_DOEPMSK_XFRCM_Msk |
+    // OUT: Transfer complete, setup done, status phase
+    hw_dev->DOEPMSK = USB_OTG_DOEPMSK_XFRCM_Msk |
         USB_OTG_DOEPMSK_STUPM_Msk | USB_OTG_DOEPMSK_OTEPSPRM_Msk /* STSPHSRXM */;
-	// IN: Transfer complete, timeout
-	hw_dev->DIEPMSK = USB_OTG_DIEPMSK_XFRCM_Msk | USB_OTG_DIEPMSK_TOM_Msk;
+    // IN: Transfer complete, timeout
+    hw_dev->DIEPMSK = USB_OTG_DIEPMSK_XFRCM_Msk | USB_OTG_DIEPMSK_TOM_Msk;
 }
 
 void usb_hw_ep_out(usb_if_t usb_if, uint32_t ep, void *p, uint32_t setup, uint32_t pkt, uint32_t size)
@@ -81,16 +83,17 @@ void usb_hw_ep_out(usb_if_t usb_if, uint32_t ep, void *p, uint32_t setup, uint32
     usb_t *usb = &usb_ifs[usb_if];
     const usb_hw_info_t *hw = &usb_hw_ifs[usb_if];
     USB_OTG_OUTEndpointTypeDef *hw_ep_out = HW_EP_OUT(hw->base, ep);
-	// Set transfer size to maximum packet size to be interrupted at the end of each packet
+    // Set transfer size to maximum packet size to be interrupted at the end of each packet
     if (size == 0)
         size = usb->ep[ep].out.max_size;
     if (hw->use_dma)
-	    hw_ep_out->DOEPDMA = (uint32_t)p;
+        hw_ep_out->DOEPDMA = (uint32_t)p;
     else
         usb->ep[ep].out.p = p;
-	hw_ep_out->DOEPTSIZ = (setup << USB_OTG_DOEPTSIZ_STUPCNT_Pos) | (pkt << USB_OTG_DOEPTSIZ_PKTCNT_Pos) |
+    log_push(LogUSB_Out, size);
+    hw_ep_out->DOEPTSIZ = (setup << USB_OTG_DOEPTSIZ_STUPCNT_Pos) | (pkt << USB_OTG_DOEPTSIZ_PKTCNT_Pos) |
         (size << USB_OTG_DOEPTSIZ_XFRSIZ_Pos);
-	hw_ep_out->DOEPCTL = (hw_ep_out->DOEPCTL & (USB_OTG_DOEPCTL_MPSIZ_Msk | USB_OTG_DOEPCTL_EPTYP_Msk)) |
+    hw_ep_out->DOEPCTL = (hw_ep_out->DOEPCTL & (USB_OTG_DOEPCTL_MPSIZ_Msk | USB_OTG_DOEPCTL_EPTYP_Msk)) |
         USB_OTG_DOEPCTL_USBAEP_Msk | USB_OTG_DOEPCTL_EPENA_Msk | USB_OTG_DOEPCTL_CNAK_Msk;
 }
 
@@ -98,6 +101,9 @@ void usb_hw_ep_in_continue(usb_if_t usb_if, uint8_t ep)
 {
     const usb_hw_info_t *hw = &usb_hw_ifs[usb_if];
     USB_OTG_INEndpointTypeDef *hw_ep_in = HW_EP_IN(hw->base, ep);
+    // uint32_t act_mask = USB_OTG_DIEPCTL_EPENA_Msk | USB_OTG_DIEPCTL_USBAEP_Msk;
+    // if ((hw_ep_in->DIEPCTL & act_mask) == act_mask)
+    //     PANIC("EP not idle");
     if (hw_ep_in->DIEPCTL & USB_OTG_DIEPCTL_EPENA_Msk)
         PANIC("EP not idle");
 
@@ -110,12 +116,12 @@ void usb_hw_ep_in_continue(usb_if_t usb_if, uint8_t ep)
     uint32_t pkt_len = usb->ep[ep].in.len;
     pkt_len = pkt_len >= max_len ? max_len : pkt_len;
     usb->ep[ep].in.len -= pkt_len;
-    log_push(LogUSB_IN, pkt_len);
+    log_push(LogUSB_InContinue, pkt_len);
 
     hw_ep_in->DIEPTSIZ = (1 << USB_OTG_DIEPTSIZ_PKTCNT_Pos) | (pkt_len << USB_OTG_DIEPTSIZ_XFRSIZ_Pos);
-	hw_ep_in->DIEPCTL = ((hw_ep_in->DIEPCTL) & (USB_OTG_DIEPCTL_TXFNUM_Msk | USB_OTG_DIEPCTL_MPSIZ_Msk |
-			USB_OTG_DIEPCTL_EPTYP_Msk)) | USB_OTG_DIEPCTL_CNAK_Msk |
-			USB_OTG_DIEPCTL_EPENA_Msk | USB_OTG_DIEPCTL_USBAEP_Msk;
+    hw_ep_in->DIEPCTL = ((hw_ep_in->DIEPCTL) & (USB_OTG_DIEPCTL_TXFNUM_Msk | USB_OTG_DIEPCTL_MPSIZ_Msk |
+            USB_OTG_DIEPCTL_EPTYP_Msk)) | USB_OTG_DIEPCTL_CNAK_Msk |
+            USB_OTG_DIEPCTL_EPENA_Msk | USB_OTG_DIEPCTL_USBAEP_Msk;
 
     uint32_t *p = usb->ep[ep].in.p;
     usb->ep[ep].in.p += pkt_len;
@@ -123,7 +129,7 @@ void usb_hw_ep_in_continue(usb_if_t usb_if, uint8_t ep)
         *HW_EP_FIFO(hw->base, ep) = *p++;
 }
 
-void usb_hw_ep_in(usb_if_t usb_if, uint8_t ep, const void *data, uint32_t len, bool status_out)
+void usb_hw_ep_in(usb_if_t usb_if, uint8_t ep, const void *data, uint32_t len, bool short_data)
 {
     usb_t *usb = &usb_ifs[usb_if];
     uint32_t max_len = usb->ep[ep].in.max_size;
@@ -131,7 +137,8 @@ void usb_hw_ep_in(usb_if_t usb_if, uint8_t ep, const void *data, uint32_t len, b
         PANIC("EP not idle");
     usb->ep[ep].in.p = data;
     usb->ep[ep].in.len = len;
-    usb->ep[ep].in.pkts = (len + max_len) / max_len;
+    usb->ep[ep].in.pkts = (len + max_len - (short_data ? 0 : 1)) / max_len;
+    log_push(LogUSB_In, len);
     usb_hw_ep_in_continue(usb_if, ep);
 }
 
@@ -141,8 +148,8 @@ void usb_hw_ep_in_stall(usb_if_t usb_if, uint8_t ep)
     USB_OTG_INEndpointTypeDef *hw_ep_in = HW_EP_IN(hw->base, ep);
     if (hw_ep_in->DIEPCTL & USB_OTG_DIEPCTL_EPENA_Msk)
         PANIC("EP not idle");
-	hw_ep_in->DIEPCTL = ((hw_ep_in->DIEPCTL) & (USB_OTG_DIEPCTL_TXFNUM_Msk | USB_OTG_DIEPCTL_MPSIZ_Msk |
-			USB_OTG_DIEPCTL_EPTYP_Msk)) | USB_OTG_DIEPCTL_STALL_Msk | USB_OTG_DIEPCTL_USBAEP_Msk;
+    hw_ep_in->DIEPCTL = ((hw_ep_in->DIEPCTL) & (USB_OTG_DIEPCTL_TXFNUM_Msk | USB_OTG_DIEPCTL_MPSIZ_Msk |
+            USB_OTG_DIEPCTL_EPTYP_Msk)) | USB_OTG_DIEPCTL_STALL_Msk | USB_OTG_DIEPCTL_USBAEP_Msk;
 }
 
 // void usb_hw_ep_tx_stall(uint8_t ep)

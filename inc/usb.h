@@ -52,6 +52,20 @@ typedef enum {
     UsbEpValid    = 0b11,
 } usb_endpoint_status_t;
 
+typedef enum {
+    USB_SETUP_REQ_GET_STATUS        = 0,
+    USB_SETUP_REQ_CLEAR_FEATURE     = 1,
+    USB_SETUP_REQ_SET_FEATURE       = 3,
+    USB_SETUP_REQ_SET_ADDRESS       = 5,
+    USB_SETUP_REQ_GET_DESCRIPTOR    = 6,
+    USB_SETUP_REQ_SET_DESCRIPTOR    = 7,
+    USB_SETUP_REQ_GET_CONFIGURATION = 8,
+    USB_SETUP_REQ_SET_CONFIGURATION = 9,
+    USB_SETUP_REQ_GET_INTERFACE     = 10,
+    USB_SETUP_REQ_SET_INTERFACE     = 11,
+    USB_SETUP_REQ_SYNCH_FRAME       = 12,
+} setup_bRequest_t;
+
 typedef struct PACKED {
     uint8_t bmRequestType;
     uint8_t bRequest;
@@ -60,6 +74,8 @@ typedef struct PACKED {
     uint16_t wLength;
     uint8_t data[0];
 } setup_t;
+
+#define SETUP_STALL ((void *)-1)
 
 void usb_init(usb_if_t usb_if);
 void usb_connect(usb_if_t usb_if, bool enable);

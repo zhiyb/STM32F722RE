@@ -132,16 +132,18 @@ pub fn build(b: *std.Build) void {
             "src/panic.c",
             "src/log.c",
             "src/systick.c",
+            "src/flash.c",
             "src/usb.c",
             "src/usb_hw.c",
             "src/usb_hw_ep.c",
             "src/usb_ep0_setup.c",
             "src/usb_desc.c",
+            "src/usb_dfu.c",
         }),
         .flags = &(target_flags ++ .{"-DBOOTLOADER"}),
     });
 
-    bl_exe.setLinkerScript(b.path("STM32F722RE_BL_AXIM.ld"));
+    bl_exe.setLinkerScript(b.path("STM32F722RE_BL_ITCM.ld"));
 
     inline for (&.{ bl_exe, fw_exe }) |exe| {
         // C include paths
@@ -161,6 +163,9 @@ pub fn build(b: *std.Build) void {
         // Keep debug and frame pointers for debugging
         exe.root_module.strip = false;
         exe.root_module.omit_frame_pointer = false;
+        // exe.link_data_sections = true;
+        // exe.link_function_sections = true;
+        exe.link_gc_sections = true;
         // LTO seems to cause compiler bugs
         // exe.want_lto = true;
 

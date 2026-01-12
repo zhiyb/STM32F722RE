@@ -17,18 +17,23 @@ typedef struct usb_ev_t {
 typedef struct usb_hw_info_t {
     uint32_t base;
     uint16_t ram_size;
+    uint8_t num_ep;
     bool use_dma;
 } usb_hw_info_t;
 
 extern const usb_hw_info_t usb_hw_ifs[NumUsbIfs];
+
+typedef struct usb_dfu_t {
+    uint8_t buf[64] ALIGNED(4);
+} usb_dfu_t;
 
 typedef struct usb_t {
     const usb_hw_info_t * const hw_info;
     struct {
         uint16_t fifo_top;
         uint8_t fifo_num;
-        uint8_t daddr;
-        bool daddr_change;
+        // uint8_t daddr;
+        // bool daddr_change;
     } hw;
     struct {
         struct {
@@ -55,6 +60,11 @@ typedef struct usb_t {
         volatile usb_ev_t data[USB_MAX_NUM_EV];
         uint8_t wptr, rptr;
     } ev;
+
+    uint8_t desc_buf[64] ALIGNED(4);
+
+    // Class-specific
+    usb_dfu_t dfu;
 } usb_t;
 
 extern usb_t usb_ifs[NumUsbIfs];
@@ -73,4 +83,6 @@ void usb_hw_ep_in_continue(usb_if_t usb_if, uint8_t ep);
 void usb_ep0_init(usb_if_t usb_if);
 void usb_ep0_setup(usb_if_t usb_if);
 
-const uint8_t *usb_desc_get(uint8_t type, uint8_t index, uint16_t *len);
+const uint8_t *usb_desc_get(uint8_t *desc_buf, uint8_t type, uint8_t index, uint16_t *len);
+
+const void *usb_dfu_setup(usb_dfu_t *dfu, setup_t *setup);

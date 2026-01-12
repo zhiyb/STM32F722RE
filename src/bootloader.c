@@ -2,9 +2,10 @@
 #include "stm32f7xx.h"
 #include "systick.h"
 // #include "dma.h"
-#include "usb.h"
 #include "semihosting.h"
 #include "irq.h"
+#include "usb.h"
+#include "usb_dfu.h"
 
 static void rcc_init()
 {
@@ -205,6 +206,7 @@ void main()
     for (;;) {
         usb_process(UsbIfFs);
         usb_process(UsbIfHs);
+        usb_dfu_process();
     }
 
 //     for (;;) {

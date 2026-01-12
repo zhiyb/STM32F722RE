@@ -71,8 +71,6 @@ static void rcc_init()
 	// Set dedicated clocks
 	RCC->DCKCFGR2 = 0;
 	while ((RCC->CFGR & RCC_CFGR_SWS_Msk) != RCC_CFGR_SWS_PLL);
-	// Update clock configuration
-	// SystemCoreClockUpdate();
 	// Enable clock output for other chips
 	mco1_init();
 }

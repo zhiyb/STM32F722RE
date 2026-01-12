@@ -10,25 +10,51 @@ const usb_hw_info_t usb_hw_ifs[NumUsbIfs] = {
     [UsbIfFs] = {
         .base = USB_OTG_FS_PERIPH_BASE,
         .ram_size = 1280,
+        .num_ep = 5,
         .use_dma = false,
     },
     [UsbIfHs] = {
         .base = USB_OTG_HS_PERIPH_BASE,
         .ram_size = 1024 * 4,
+        .num_ep = 8,
         .use_dma = true,
     },
 };
 
 static void usb_hw_reset(usb_if_t usb_if)
 {
+    log_push(LogUSB_UsbReset, 0);
+
     // Reset device address
     const usb_hw_info_t *hw = &usb_hw_ifs[usb_if];
+    USB_OTG_GlobalTypeDef *hw_g = HW_G(hw->base);
     USB_OTG_DeviceTypeDef *hw_dev = HW_DEV(hw->base);
     hw_dev->DCFG &= ~USB_OTG_DCFG_DAD_Msk;
 
+    // Disable endpoints
     usb_t *usb = &usb_ifs[usb_if];
-    usb->hw.daddr = 0;
-    usb->hw.daddr_change = false;
+    for (uint32_t ep = 0; ep < hw->num_ep; ep++) {
+        usb->ep[ep].in.pkts = 0;
+        USB_OTG_INEndpointTypeDef *hw_ep_in = HW_EP_IN(hw->base, ep);
+        uint32_t ctl = hw_ep_in->DIEPCTL;
+        if (ctl & USB_OTG_DIEPCTL_EPENA_Msk)
+            hw_ep_in->DIEPCTL = (ctl & (USB_OTG_DIEPCTL_TXFNUM_Msk | USB_OTG_DIEPCTL_MPSIZ_Msk |
+                USB_OTG_DIEPCTL_EPTYP_Msk)) | USB_OTG_DIEPCTL_EPDIS_Msk;
+
+        usb->ep[ep].out.pkts = 0;
+        USB_OTG_OUTEndpointTypeDef *hw_ep_out = HW_EP_OUT(hw->base, ep);
+        ctl = hw_ep_out->DOEPCTL;
+        if (ctl & USB_OTG_DOEPCTL_EPDIS_Msk)
+            hw_ep_out->DOEPCTL = (ctl & (USB_OTG_DOEPCTL_MPSIZ_Msk | USB_OTG_DOEPCTL_EPTYP_Msk)) |
+                USB_OTG_DOEPCTL_EPDIS_Msk;
+    }
+
+    // Flush FIFOs
+    hw_g->GRSTCTL = (0x10ul << USB_OTG_GRSTCTL_TXFNUM_Pos) |
+        USB_OTG_GRSTCTL_TXFFLSH_Msk | USB_OTG_GRSTCTL_RXFFLSH_Msk;
+
+    // usb->hw.daddr = 0;
+    // usb->hw.daddr_change = false;
     usb->ev.rptr = 0;
     usb->ev.wptr = 0;
     usb->ev.data[0].ev = UsbEvNone;
@@ -138,6 +164,8 @@ void usb_hw_init(usb_if_t usb_if)
 
 void usb_hw_connect(usb_if_t usb_if, bool enable)
 {
+    log_push(LogUSB_Connect, (usb_if << 8) + enable);
+
     const usb_hw_info_t *hw = &usb_hw_ifs[usb_if];
     USB_OTG_DeviceTypeDef *hw_dev = HW_DEV(hw->base);
     hw_dev->DCTL = enable ? 0 : USB_OTG_DCTL_SDIS_Msk;
@@ -183,13 +211,14 @@ static void usb_hw_irq(usb_if_t usb_if)
     usb_t *usb = &usb_ifs[usb_if];
     bool handled = false;
 
-    log_push(LogUSB_Interface, usb_if);
-    log_push(LogUSB_Interrupt, gintsts);
+    // log_push(LogUSB_Interface, usb_if);
+    // log_push(LogUSB_Interrupt, gintsts);
 
     // USB reset
     if (gintsts & USB_OTG_GINTSTS_USBRST_Msk) {
         hw_g->GINTSTS = USB_OTG_GINTSTS_USBRST_Msk;
         handled = true;
+        log_push(LogUSB_INT_UsbReset, gintsts);
         usb_hw_reset(usb_if);
     }
 
@@ -197,6 +226,7 @@ static void usb_hw_irq(usb_if_t usb_if)
     if (gintsts & USB_OTG_GINTSTS_ENUMDNE_Msk) {
         handled = true;
         hw_g->GINTSTS = USB_OTG_GINTSTS_ENUMDNE_Msk;
+        log_push(LogUSB_INT_EunmDone, gintsts);
         usb_hw_ep_init(usb_if);
     }
 
@@ -204,7 +234,7 @@ static void usb_hw_irq(usb_if_t usb_if)
     if (!hw->use_dma && (gintsts & USB_OTG_GINTSTS_RXFLVL_Msk)) {
         handled = true;
         uint32_t grxstsp = hw_g->GRXSTSP;
-        log_push(LogUSB_RX, grxstsp);
+        log_push(LogUSB_INT_Rx, grxstsp);
         uint32_t ep = (grxstsp & USB_OTG_GRXSTSP_EPNUM_Msk) >> USB_OTG_GRXSTSP_EPNUM_Pos;
         uint32_t cnt = (grxstsp & USB_OTG_GRXSTSP_BCNT_Msk) >> USB_OTG_GRXSTSP_BCNT_Pos;
         uint32_t *p = usb->ep[ep].out.p;
@@ -221,11 +251,11 @@ static void usb_hw_irq(usb_if_t usb_if)
     // OUT endpoint interrupt
     if (gintsts & USB_OTG_GINTSTS_OEPINT_Msk) {
         uint16_t daint = hw_dev->DAINT >> USB_OTG_DAINT_OEPINT_Pos;
-        log_push(LogUSB_OUT_INT, daint);
+        log_push(LogUSB_INT_Out, daint);
         for (uint8_t ep = 0; daint; daint >>= 1, ep += 1) {
             USB_OTG_OUTEndpointTypeDef *hw_ep_out = HW_EP_OUT(hw->base, ep);
             uint32_t ep_int = hw_ep_out->DOEPINT;
-            log_push(LogUSB_OUT_EP_INT, ep_int);
+            log_push(LogUSB_INT_OutEp, ep_int);
             if (ep_int & USB_OTG_DOEPINT_STUP_Msk) {
                 handled = true;
                 hw_ep_out->DOEPINT = USB_OTG_DOEPINT_STUP_Msk;
@@ -241,11 +271,11 @@ static void usb_hw_irq(usb_if_t usb_if)
     // IN endpoint interrupt
     if (gintsts & USB_OTG_GINTSTS_IEPINT_Msk) {
         uint16_t daint = hw_dev->DAINT >> USB_OTG_DAINT_IEPINT_Pos;
-        log_push(LogUSB_IN_INT, daint);
+        log_push(LogUSB_INT_In, daint);
         for (uint8_t ep = 0; daint; daint >>= 1, ep += 1) {
             USB_OTG_INEndpointTypeDef *hw_ep_in = HW_EP_IN(hw->base, ep);
             uint32_t ep_int = hw_ep_in->DIEPINT;
-            log_push(LogUSB_IN_EP_INT, ep_int);
+            log_push(LogUSB_INT_InEp, ep_int);
             if (ep_int & USB_OTG_DIEPINT_XFRC_Msk) {
                 handled = true;
                 hw_ep_in->DIEPINT = USB_OTG_DIEPINT_XFRC_Msk;
@@ -253,11 +283,11 @@ static void usb_hw_irq(usb_if_t usb_if)
                     usb_hw_ep_in_continue(usb_if, ep);
                 else
                     usb_hw_push_event(usb, ep, UsbEvIn);
-                if (ep == 0 && usb->hw.daddr_change) {
-                    hw_dev->DCFG = (hw_dev->DCFG & ~USB_OTG_DCFG_DAD_Msk) | (usb->hw.daddr << USB_OTG_DCFG_DAD_Pos);
-                    usb->hw.daddr_change = false;
-                    log_push(LogUSB_SetAddress_INT, usb->hw.daddr);
-                }
+                // if (ep == 0 && usb->hw.daddr_change) {
+                //     hw_dev->DCFG = (hw_dev->DCFG & ~USB_OTG_DCFG_DAD_Msk) | (usb->hw.daddr << USB_OTG_DCFG_DAD_Pos);
+                //     usb->hw.daddr_change = false;
+                //     log_push(LogUSB_SetAddress_INT, usb->hw.daddr);
+                // }
             }
             if (ep_int & USB_OTG_DIEPINT_TOC_Msk) {
                 handled = true;
@@ -268,6 +298,7 @@ static void usb_hw_irq(usb_if_t usb_if)
     }
 
     if (!handled) {
+        log_push(LogUSB_INT_Unhandled, gintsts);
         DBG_BKPT("USB_IRQ");
     }
 }

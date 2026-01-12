@@ -4,16 +4,16 @@ __stack_end = ORIGIN(RAM) + LENGTH(RAM);
 /* Define output sections */
 SECTIONS
 {
-  /* The startup code goes first into FLASH */
+  /* The startup code goes first into EXEC */
   . = ALIGN(4);
   .isr_vector :
   {
     __isr_vector_start = .;
     KEEP(*(.isr_vector)) /* Startup code */
     . = ALIGN(4);
-  } >FLASH
+  } >EXEC AT> LOAD
 
-  /* The program code and other data goes into FLASH */
+  /* The program code and other data goes into EXEC */
   . = ALIGN(4);
   .text :
   {
@@ -27,44 +27,51 @@ SECTIONS
     KEEP (*(.fini))
 
     . = ALIGN(4);
-  } >FLASH
+  } >EXEC AT> LOAD
 
-  /* Constant data goes into FLASH */
+  /* Constant data goes into EXEC */
   .rodata :
   {
     . = ALIGN(4);
     *(.rodata)         /* .rodata sections (constants, strings, etc.) */
     *(.rodata*)        /* .rodata* sections (constants, strings, etc.) */
     . = ALIGN(4);
-  } >FLASH
+  } >EXEC AT> LOAD
 
-  .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >FLASH
-  .ARM : {
+  .ARM.extab :
+  {
+    *(.ARM.extab* .gnu.linkonce.armextab.*)
+  } >EXEC AT> LOAD
+
+  .ARM :
+  {
     __exidx_start = .;
     *(.ARM.exidx*)
     __exidx_end = .;
-  } >FLASH
+  } >EXEC AT> LOAD
 
-  .preinit_array     :
+  .preinit_array :
   {
     PROVIDE_HIDDEN (__preinit_array_start = .);
     KEEP (*(.preinit_array*))
     PROVIDE_HIDDEN (__preinit_array_end = .);
-  } >FLASH
+  } >EXEC AT> LOAD
+
   .init_array :
   {
     PROVIDE_HIDDEN (__init_array_start = .);
     KEEP (*(SORT(.init_array.*)))
     KEEP (*(.init_array*))
     PROVIDE_HIDDEN (__init_array_end = .);
-  } >FLASH
+  } >EXEC AT> LOAD
+
   .fini_array :
   {
     PROVIDE_HIDDEN (__fini_array_start = .);
     KEEP (*(SORT(.fini_array.*)))
     KEEP (*(.fini_array*))
     PROVIDE_HIDDEN (__fini_array_end = .);
-  } >FLASH
+  } >EXEC AT> LOAD
 
 
   /* Used by the startup to initialize data */
@@ -82,7 +89,7 @@ SECTIONS
 
     . = ALIGN(4);
     __data_end = .;
-  } >RAM AT> FLASH
+  } >RAM AT> LOAD
 
   /* Uninitialized data section */
   . = ALIGN(4);
