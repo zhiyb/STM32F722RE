@@ -14,7 +14,7 @@
             "cwd": "${workspaceRoot}",
             "preLaunchTask": "zig build",
             "runToEntryPoint": "main",
-            "executable": "zig-out/bin/fw",
+            "executable": "zig-out/bin/fw.elf",
             "gdbPath": "gdb-multiarch",
             "gdbTarget": "zhiyb-RPi0W2-2:3333",
             "svdFile": "STM32F722.svd",
@@ -30,12 +30,33 @@
         }, {
             "type": "cortex-debug",
             "request": "launch",
-            "name": "Debug bootloader (zhiyb-RPi0W2-2:3333)",
+            "name": "Debug Flash bootloader (zhiyb-RPi0W2-2:3333)",
+            "servertype": "external",
+            "cwd": "${workspaceRoot}",
+            "preLaunchTask": "zig build",
+            "runToEntryPoint": "Reset_Handler",
+            "executable": "zig-out/bin/bl_flash.elf",
+            "gdbPath": "gdb-multiarch",
+            "gdbTarget": "zhiyb-RPi0W2-2:3333",
+            "svdFile": "STM32F722.svd",
+            "swoConfig": {
+                "enabled": false,
+                "cpuFrequency": 8000000,
+                "swoFrequency": 2000000,
+                "source": "probe",
+                "decoders": [
+                    { "type": "console", "label": "ITM", "port": 0 }
+                ]
+            }
+        }, {
+            "type": "cortex-debug",
+            "request": "launch",
+            "name": "Debug USB bootloader (zhiyb-RPi0W2-2:3333)",
             "servertype": "external",
             "cwd": "${workspaceRoot}",
             "preLaunchTask": "zig build",
             "runToEntryPoint": "main",
-            "executable": "zig-out/bin/bl",
+            "executable": "zig-out/bin/bl_usb.elf",
             "gdbPath": "gdb-multiarch",
             "gdbTarget": "zhiyb-RPi0W2-2:3333",
             "svdFile": "STM32F722.svd",

@@ -1,11 +1,20 @@
 #include <stdbool.h>
 #include "stm32f7xx.h"
 #include "systick.h"
-// #include "dma.h"
 #include "semihosting.h"
+#include "bootloader.h"
+#include "macros.h"
 #include "irq.h"
 #include "usb.h"
 #include "usb_dfu.h"
+
+extern void Reset_Handler();
+
+// Header to tell flash bootloader the entry point
+static bootloader_req_t req USED SECTION(.fw_header) = {
+    .op = BootloaderRunItcm,
+    .ptr = &Reset_Handler,
+};
 
 static void rcc_init()
 {
@@ -61,8 +70,7 @@ static void board_init()
     panic_init();
 
     // Configure interrupt vector table location
-    extern uint32_t __isr_vector_start;
-    SCB->VTOR = (uint32_t)&__isr_vector_start;
+    SCB->VTOR = (uint32_t)irq_vectors;
     // Enable all interrupts
     NVIC_SetPriorityGrouping(NVIC_PRIORITY_GROUPING);
     __enable_irq();

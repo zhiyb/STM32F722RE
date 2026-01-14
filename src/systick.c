@@ -22,13 +22,6 @@ uint32_t systick_ms()
     return __atomic_load_n(&ms, __ATOMIC_RELAXED);
 }
 
-uint32_t systick_log()
-{
-    uint32_t v = __atomic_load_n(&ms, __ATOMIC_RELAXED) << 16;
-    v |= PERIOD - 1 - SysTick->VAL;
-    return v;
-}
-
 void SysTick_Handler()
 {
     __atomic_add_fetch(&ms, 1, __ATOMIC_RELAXED);

@@ -1,5 +1,16 @@
 const std = @import("std");
 
+pub fn build_bin_to_h(b: *std.Build) *std.Build.Step.Compile {
+    const exe = b.addExecutable(.{
+        .name = "bin_to_h",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/bin_to_h.zig"),
+            .target = b.graph.host,
+        }),
+    });
+    return exe;
+}
+
 // Although this function looks imperative, it does not perform the build
 // directly and instead it mutates the build graph (`b`) that will be then
 // executed by an external runner. The functions in `std.Build` implement a DSL
@@ -100,6 +111,7 @@ pub fn build(b: *std.Build) void {
     // C source files
     fw_exe.addCSourceFiles(.{
         .files = &(target_c_sources ++ .{
+            "src/irq.c",
             "src/main.c",
             "src/panic.c",
             "src/log.c",
@@ -120,18 +132,19 @@ pub fn build(b: *std.Build) void {
 
     fw_exe.setLinkerScript(b.path("STM32F722RE_FW_ITCM.ld"));
 
-    // Bootloader
-    const bl_exe = b.addExecutable(.{
-        .name = "bl",
+    // USB bootloader
+    const bl_usb_exe = b.addExecutable(.{
+        .name = "bl_usb",
         .root_module = b.createModule(.{
             .target = target,
             .optimize = optimize,
         }),
     });
 
-    bl_exe.addCSourceFiles(.{
+    bl_usb_exe.addCSourceFiles(.{
         .files = &(target_c_sources ++ .{
-            "src/bootloader.c",
+            "src/irq.c",
+            "src/boot_usb.c",
             "src/panic.c",
             "src/log.c",
             "src/systick.c",
@@ -146,9 +159,28 @@ pub fn build(b: *std.Build) void {
         .flags = &(target_flags ++ .{"-DBOOTLOADER"}),
     });
 
-    bl_exe.setLinkerScript(b.path("STM32F722RE_BL_ITCM.ld"));
+    bl_usb_exe.setLinkerScript(b.path("STM32F722RE_BL_USB.ld"));
 
-    inline for (&.{ bl_exe, fw_exe }) |exe| {
+    // Flash bootloader
+    const bl_flash_exe = b.addExecutable(.{
+        .name = "bl_flash",
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    bl_flash_exe.addCSourceFiles(.{
+        .files = &.{
+            "src/irq.c",
+            "src/boot_flash.c",
+        },
+        .flags = &(target_flags ++ .{"-DBOOTLOADER_FLASH"}),
+    });
+
+    bl_flash_exe.setLinkerScript(b.path("STM32F722RE_BL_FLASH.ld"));
+
+    inline for (.{ bl_usb_exe, bl_flash_exe, fw_exe }) |exe| {
         // C include paths
         inline for (.{
             "cmsis",
@@ -177,8 +209,20 @@ pub fn build(b: *std.Build) void {
         // install prefix when running `zig build` (i.e. when executing the default
         // step). By default the install prefix is `zig-out/` but can be overridden
         // by passing `--prefix` or `-p`.
-        b.installArtifact(exe);
+        // b.installArtifact(exe);
+        const installElf = b.addInstallBinFile(exe.getEmittedBin(), b.fmt("{s}.elf", .{exe.out_filename}));
+        b.getInstallStep().dependOn(&installElf.step);
+
+        const bin = exe.addObjCopy(.{ .format = .bin });
+        const installBin = b.addInstallBinFile(bin.getOutput(), b.fmt("{s}.bin", .{exe.out_filename}));
+        b.getInstallStep().dependOn(&installBin.step);
     }
+
+    const bl_usb_bin = bl_usb_exe.addObjCopy(.{ .format = .bin });
+    const bl_usb_h_tool = b.addRunArtifact(build_bin_to_h(b));
+    bl_usb_h_tool.addFileArg(bl_usb_bin.getOutput());
+    const bl_usb_h = bl_usb_h_tool.addOutputFileArg("bl_usb.h");
+    bl_flash_exe.root_module.addIncludePath(bl_usb_h.dirname());
 
     // // This creates a top level step. Top level steps have a name and can be
     // // invoked by name when running `zig build` (e.g. `zig build run`).

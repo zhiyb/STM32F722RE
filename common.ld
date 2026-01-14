@@ -5,6 +5,9 @@ __stack_end = ORIGIN(RAM) + LENGTH(RAM);
 __firmware_start = ORIGIN(FW_AXIM);
 __firmware_end   = __firmware_start + LENGTH(FW_AXIM);
 
+/* Bootloader request address */
+__bootloader_req = ORIGIN(ITCM);
+
 /* Define output sections */
 SECTIONS
 {
@@ -13,10 +16,6 @@ SECTIONS
   .header :
   {
     KEEP(*(.fw_header))
-    . = ALIGN(4);
-    __isr_vector_start = .;
-    KEEP(*(.isr_vector))
-    . = ALIGN(4);
   } >EXEC AT> LOAD
 
   /* The program code and other data goes into EXEC */

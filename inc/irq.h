@@ -10,3 +10,5 @@ typedef enum {
     NvicPriorityUsbHsLP,
     NvicPriorityUsbFs,
 } nvic_priority_t;
+
+extern const void * const irq_vectors[];

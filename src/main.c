@@ -60,8 +60,7 @@ static void board_init()
     panic_init();
 
     // Configure interrupt vector table location
-    extern uint32_t __isr_vector_start;
-    SCB->VTOR = (uint32_t)&__isr_vector_start;
+    SCB->VTOR = (uint32_t)irq_vectors;
     // Enable all interrupts
     NVIC_SetPriorityGrouping(NVIC_PRIORITY_GROUPING);
     __enable_irq();
