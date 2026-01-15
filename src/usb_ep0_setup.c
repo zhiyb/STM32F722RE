@@ -15,8 +15,9 @@ static ret_buf_t ret_buf ALIGNED(4);
 void usb_ep0_init(usb_if_t usb_if)
 {
     usb_t *usb = &usb_ifs[usb_if];
+    usb->ep0.setup[0] = (setup_t){0};
     // Ready to receive a setup packet
-    usb_hw_ep_out(usb_if, 0, &usb->ep0.setup, 1, 0, 0);
+    usb_hw_ep_out(usb_if, 0, &usb->ep0.setup[0], 3, 0, 0);
 }
 
 static inline const void *usb_ep0_setup_standard_req(usb_if_t usb_if, setup_t *setup)
@@ -41,7 +42,7 @@ static inline const void *usb_ep0_setup_standard_req(usb_if_t usb_if, setup_t *s
         uint8_t type = setup->wValue >> 8;
         uint8_t index = setup->wValue;
         uint16_t len = 0;
-        const uint8_t *desc = usb_desc_get(usb->desc_buf, type, index, &len);
+        const uint8_t *desc = usb_desc_get(usb->ep0.buf, type, index, &len);
         if (!desc) {
             // Descriptor not applicable, STALL
             return SETUP_STALL;
@@ -72,14 +73,15 @@ static inline const void *usb_ep0_setup_standard_req(usb_if_t usb_if, setup_t *s
     }
 }
 
-void usb_ep0_setup(usb_if_t usb_if)
+void usb_ep0_setup(usb_if_t usb_if, bool buf_valid)
 {
     usb_t *usb = &usb_ifs[usb_if];
-    setup_t *setup = &usb->ep0.setup;
+    setup_t *setup = &usb->ep0.setup[0];
     uint16_t wLength = setup->wLength;
-    if (!(setup->bmRequestType & 0x80) && wLength) {
-        // Ready to receive data stage
-        TODO();
+    if ((setup->bmRequestType & 0x80) == 0 && wLength != 0 && !buf_valid) {
+        // Ready to receive data OUT stage
+        usb_hw_ep_out(usb_if, 0, &usb->ep0.buf[0], 0, 1, MIN(wLength, sizeof(usb->ep0.buf)));
+        return;
     }
 
     const void *ret = SETUP_STALL;
@@ -97,7 +99,7 @@ void usb_ep0_setup(usb_if_t usb_if)
         if (usb_dfu_state() >= UsbDfuState_dfuIDLE) {
             switch (setup->wIndex) {
             case UsbInterfaceDfuMode:
-                ret = usb_dfu_setup(&usb->dfu, setup);
+                ret = usb_dfu_setup(setup, usb->ep0.buf, usb->ep[0].out.offset);
                 break;
             default:
                 DBG_BKPT("Unknown Interface");
@@ -105,7 +107,7 @@ void usb_ep0_setup(usb_if_t usb_if)
         } else {
             switch (setup->wIndex) {
             case UsbInterfaceDfuRT:
-                ret = usb_dfu_setup(&usb->dfu, setup);
+                ret = usb_dfu_setup(setup, usb->ep0.buf, usb->ep[0].out.offset);
                 break;
             default:
                 DBG_BKPT("Unknown Interface");
@@ -152,5 +154,14 @@ void usb_ep0_setup(usb_if_t usb_if)
         usb_hw_ep_in(usb_if, 0, 0, 0, true);
     }
     // Ready to receive another Setup packet
-    usb_hw_ep_out(usb_if, 0, &usb->ep0.setup, 1, status_out, 0);
+    usb_hw_ep_out(usb_if, 0, &usb->ep0.setup[0], 3, status_out, 0);
+}
+
+void usb_ep0_out(usb_if_t usb_if)
+{
+    usb_t *usb = &usb_ifs[usb_if];
+    // Ignore 0-length STATUS OUT packets
+    if (usb->ep[0].out.len == 0)
+        return;
+    usb_ep0_setup(usb_if, true);
 }

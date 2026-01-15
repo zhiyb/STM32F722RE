@@ -1,4 +1,5 @@
 #pragma once
+#include "usb.h"
 
 #define USB_DFU_TRANSFER_SIZE   512
 
@@ -37,3 +38,5 @@ typedef enum {
 
 usb_dfu_bState_t usb_dfu_state();
 void usb_dfu_process();
+
+const void *usb_dfu_setup(setup_t *setup, void *data, uint32_t len);

@@ -15,7 +15,7 @@ SECTIONS
   . = ALIGN(4);
   .header :
   {
-    KEEP(*(.fw_header))
+    KEEP (*(.fw_header))
   } >EXEC AT> LOAD
 
   /* The program code and other data goes into EXEC */

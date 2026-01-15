@@ -5,8 +5,16 @@
 
 static void boot_fw()
 {
+    bootloader_req->op = BootloaderBootFw;
     if (firmware_header->header_size != 0xffffffff)
         firmware_header->entry();
+}
+
+static void boot_run_direct()
+{
+    bootloader_req->op = BootloaderBootFw;
+    void (*entry)() = (void (*)())bootloader_req->ptr;
+    entry();
 }
 
 static void boot_run()
@@ -27,12 +35,6 @@ static void boot_run()
         return;
 
     // Find entry point and run it
-    void (*entry)() = (void (*)())bootloader_req->ptr;
-    entry();
-}
-
-static void boot_run_direct()
-{
     void (*entry)() = (void (*)())bootloader_req->ptr;
     entry();
 }
@@ -70,7 +72,6 @@ void Reset_Handler()
     if (csr & RCC_CSR_SFTRSTF_Msk) {
         // Software reset, check requested operation
         bootloader_op_t op = (bootloader_op_t)bootloader_req->op;
-        bootloader_req->op = BootloaderBootFw;
         if (op == BootloaderRunItcm) {
             // Possibly debugger reset, jump to ITCM directly
             boot_run_direct();
@@ -84,7 +85,6 @@ void Reset_Handler()
         bootloader_req->op = BootloaderButton;
         if (op == BootloaderButton) {
             // Reset button pressed again quickly, start bootloader
-            bootloader_req->op = BootloaderBootFw;
             goto run_bootloader;
         }
 

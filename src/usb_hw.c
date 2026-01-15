@@ -23,7 +23,7 @@ const usb_hw_info_t usb_hw_ifs[NumUsbIfs] = {
 
 static void usb_hw_reset(usb_if_t usb_if)
 {
-    log_push(LogUSB_UsbReset, 0);
+    // log_push(LogUSB_UsbReset, 0);
 
     // Reset device address
     const usb_hw_info_t *hw = &usb_hw_ifs[usb_if];
@@ -44,7 +44,7 @@ static void usb_hw_reset(usb_if_t usb_if)
         usb->ep[ep].out.pkts = 0;
         USB_OTG_OUTEndpointTypeDef *hw_ep_out = HW_EP_OUT(hw->base, ep);
         ctl = hw_ep_out->DOEPCTL;
-        if (ctl & USB_OTG_DOEPCTL_EPDIS_Msk)
+        if (ctl & USB_OTG_DOEPCTL_EPENA_Msk)
             hw_ep_out->DOEPCTL = (ctl & (USB_OTG_DOEPCTL_MPSIZ_Msk | USB_OTG_DOEPCTL_EPTYP_Msk)) |
                 USB_OTG_DOEPCTL_EPDIS_Msk;
     }
@@ -236,16 +236,21 @@ static void usb_hw_irq(usb_if_t usb_if)
         uint32_t grxstsp = hw_g->GRXSTSP;
         log_push(LogUSB_INT_Rx, grxstsp);
         uint32_t ep = (grxstsp & USB_OTG_GRXSTSP_EPNUM_Msk) >> USB_OTG_GRXSTSP_EPNUM_Pos;
-        uint32_t cnt = (grxstsp & USB_OTG_GRXSTSP_BCNT_Msk) >> USB_OTG_GRXSTSP_BCNT_Pos;
-        uint32_t *p = usb->ep[ep].out.p;
-        cnt = (cnt + 3) / 4;
-        while (cnt--) {
-            // uint32_t v = *HW_EP_FIFO(hw->base, ep);
-            // *p++ = v;
-            // log_push(LogUSB_RX_DATA, v);
-            *p++ = *HW_EP_FIFO(hw->base, ep);
+        uint16_t cnt = (grxstsp & USB_OTG_GRXSTSP_BCNT_Msk) >> USB_OTG_GRXSTSP_BCNT_Pos;
+        uint32_t *p = (uint32_t *)((uint32_t)usb->ep[ep].out.p + usb->ep[ep].out.offset);
+        uint32_t pktsts = (grxstsp & USB_OTG_GRXSTSP_PKTSTS_Msk) >> USB_OTG_GRXSTSP_PKTSTS_Pos;
+        if (pktsts == 0b0010) {
+            // Only advance pointer for OUT packet, skipped for SETUP packets
+            // Ignore early SETUP packets in case of error
+            usb->ep[ep].out.last_len = cnt;
+            usb->ep[ep].out.offset += cnt;
+        } else if (pktsts == 0b0110) {
+            // SETUP packet received
+            usb->ep[ep].out.last_len = 0;
         }
-        usb->ep[ep].out.p = p;
+        cnt = (cnt + 3) / 4;
+        while (cnt--)
+            *p++ = *HW_EP_FIFO(hw->base, ep);
     }
 
     // OUT endpoint interrupt
@@ -264,6 +269,13 @@ static void usb_hw_irq(usb_if_t usb_if)
             if (ep_int & USB_OTG_DOEPINT_XFRC_Msk) {
                 handled = true;
                 hw_ep_out->DOEPINT = USB_OTG_DOEPINT_XFRC_Msk;
+                bool complete = true;
+                if (usb->ep[ep].out.last_len == usb->ep[ep].out.max_size) {
+                    // More data may be available
+                    complete = !usb_hw_ep_out_continue(usb_if, ep, 0, 1);
+                }
+                if (complete)
+                    usb_hw_push_event(usb, ep, UsbEvOut);
             }
         }
     }
@@ -283,11 +295,6 @@ static void usb_hw_irq(usb_if_t usb_if)
                     usb_hw_ep_in_continue(usb_if, ep);
                 else
                     usb_hw_push_event(usb, ep, UsbEvIn);
-                // if (ep == 0 && usb->hw.daddr_change) {
-                //     hw_dev->DCFG = (hw_dev->DCFG & ~USB_OTG_DCFG_DAD_Msk) | (usb->hw.daddr << USB_OTG_DCFG_DAD_Pos);
-                //     usb->hw.daddr_change = false;
-                //     log_push(LogUSB_SetAddress_INT, usb->hw.daddr);
-                // }
             }
             if (ep_int & USB_OTG_DIEPINT_TOC_Msk) {
                 handled = true;
@@ -316,9 +323,11 @@ void usb_hw_process(usb_if_t usb_if)
     case UsbEvSetup:
         if (ev.ep != 0)
             PANIC("SETUP received on unexpected endpoint");
-        usb_ep0_setup(usb_if);
+        usb_ep0_setup(usb_if, false);
         break;
-
+    case UsbEvOut:
+        usb_ep0_out(usb_if);
+        break;
     case UsbEvIn:
         break;
 

@@ -44,6 +44,7 @@ pub fn main() !void {
         ofs += 16;
     }
 
+    try output_writer.interface.flush();
     return std.process.cleanExit();
 }
 

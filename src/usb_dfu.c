@@ -5,6 +5,7 @@
 #include "usb.h"
 #include "usb_internal.h"
 #include "usb_dfu.h"
+#include "log.h"
 
 #define REATTACH_DELAY_MS   500
 
@@ -31,7 +32,7 @@ static struct {
     bool pending;
 } usb_dfu;
 
-const void *usb_dfu_setup(usb_dfu_t *dfu, setup_t *setup)
+const void *usb_dfu_setup(setup_t *setup, void *data, uint32_t len)
 {
     status_t *status = &usb_dfu.status;
     switch (setup->bRequest) {
@@ -79,6 +80,36 @@ const void *usb_dfu_setup(usb_dfu_t *dfu, setup_t *setup)
         break;
     }
 
+    case REQ_CLASS_DFU_DNLOAD:
+        switch (usb_dfu.status.bState) {
+        case UsbDfuState_dfuIDLE:
+            if (len != 0) {
+                log_push(LogUsbDfu_Download, len);
+                usb_dfu.status.bState = UsbDfuState_dfuDNLOAD_SYNC;
+                usb_dfu.pending = true;
+                return 0;
+            }
+            break;
+        case UsbDfuState_dfuDNLOAD_IDLE:
+            log_push(LogUsbDfu_Download, len);
+            if (len != 0) {
+                usb_dfu.status.bState = UsbDfuState_dfuDNLOAD_SYNC;
+                usb_dfu.pending = true;
+                return 0;
+            } else if (true) {
+                // Data transfer completed and OK
+                usb_dfu.status.bState = UsbDfuState_dfuMANIFEST_SYNC;
+                usb_dfu.pending = true;
+                return 0;
+            } else {
+                // Data transfer completed but NOT OK
+            }
+            break;
+        }
+        usb_dfu.status.bState = UsbDfuState_dfuERROR;
+        usb_dfu.status.bStatus = UsbDfuStatus_errUNKNOWN;
+        return SETUP_STALL;
+
     default:
         DBG_BKPT("Unknown request");
         return SETUP_STALL;
@@ -103,6 +134,20 @@ void usb_dfu_process()
             for (uint32_t usb_if = 0; usb_if < NumUsbIfs; usb_if++)
                 usb_connect(usb_if, true);
         }
+        break;
+
+    case UsbDfuState_dfuDNLOAD_SYNC:
+        // TODO download data to flash
+        log_push(LogUsbDfu_Proc_Download, usb_dfu.status.bState);
+        usb_dfu.pending = false;
+        usb_dfu.status.bState = UsbDfuState_dfuDNLOAD_IDLE;
+        break;
+
+    case UsbDfuState_dfuMANIFEST_SYNC:
+        // TODO data complete
+        log_push(LogUsbDfu_Proc_Manifest, usb_dfu.status.bState);
+        usb_dfu.pending = false;
+        usb_dfu.status.bState = UsbDfuState_dfuIDLE;
         break;
 
     default:

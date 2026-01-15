@@ -5,6 +5,7 @@ typedef enum {
     UsbEvNone,
     UsbEvSetup,
     UsbEvIn,
+    UsbEvOut,
 } usb_ev_id_t;
 
 typedef struct usb_ev_t {
@@ -23,12 +24,8 @@ typedef struct usb_hw_info_t {
 
 extern const usb_hw_info_t usb_hw_ifs[NumUsbIfs];
 
-typedef struct usb_dfu_t {
-    uint8_t buf[64] ALIGNED(4);
-} usb_dfu_t;
-
 typedef struct usb_t {
-    const usb_hw_info_t * const hw_info;
+    const usb_hw_info_t *hw_info;
     struct {
         uint16_t fifo_top;
         uint8_t fifo_num;
@@ -39,20 +36,24 @@ typedef struct usb_t {
         struct {
             void *p;
             uint32_t len;
+            uint32_t offset;
             uint32_t pkts;
+            uint16_t last_len;
             uint16_t max_size;
-        } in;
+        } out;
         struct {
             void *p;
             uint32_t len;
             uint32_t pkts;
             uint16_t max_size;
-        } out;
+        } in;
     } ep[8];
     struct {
-        setup_t setup;
-        uint8_t buf[64];
-    } ep0;
+        // Per the USB 2.0 specification, normally, during a SETUP packet error,
+        // a host does not send more than three back-to-back SETUP packets to the same endpoint
+        setup_t setup[3];
+        uint8_t buf[512];
+    } ep0 ALIGNED(4);
     struct {
         uint32_t grxstsp;
     } rx;
@@ -60,11 +61,6 @@ typedef struct usb_t {
         volatile usb_ev_t data[USB_MAX_NUM_EV];
         uint8_t wptr, rptr;
     } ev;
-
-    uint8_t desc_buf[64] ALIGNED(4);
-
-    // Class-specific
-    usb_dfu_t dfu;
 } usb_t;
 
 extern usb_t usb_ifs[NumUsbIfs];
@@ -77,12 +73,13 @@ void usb_hw_connect(usb_if_t usb_if, bool enable);
 bool usb_hw_is_connected(usb_if_t usb_if);
 
 void usb_hw_ep_init(usb_if_t usb_if);
-void usb_hw_ep_out(usb_if_t usb_if, uint32_t epnum, void *p, uint32_t setup, uint32_t pkt, uint32_t size);
-void usb_hw_ep_in_continue(usb_if_t usb_if, uint8_t ep);
+void usb_hw_ep_out(usb_if_t usb_if, uint32_t epnum, void *data, uint32_t setup, uint32_t pkt, uint32_t len);
+bool usb_hw_ep_out_continue(usb_if_t usb_if, uint32_t ep, uint32_t setup, uint32_t pkt);
+void usb_hw_ep_in(usb_if_t usb_if, uint8_t ep, const void *data, uint32_t len, bool short_data);
+bool usb_hw_ep_in_continue(usb_if_t usb_if, uint8_t ep);
 
 void usb_ep0_init(usb_if_t usb_if);
-void usb_ep0_setup(usb_if_t usb_if);
+void usb_ep0_setup(usb_if_t usb_if, bool buf_valid);
+void usb_ep0_out(usb_if_t usb_if);
 
 const uint8_t *usb_desc_get(uint8_t *desc_buf, uint8_t type, uint8_t index, uint16_t *len);
-
-const void *usb_dfu_setup(usb_dfu_t *dfu, setup_t *setup);

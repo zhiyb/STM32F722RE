@@ -17,6 +17,7 @@ typedef enum {
     LogUSB_In,
     LogUSB_InContinue,
     LogUSB_Out,
+    LogUSB_OutContinue,
     // LogUSB_RX,
     // LogUSB_RX_DATA,
     // LogUSB_OUT_INT,
@@ -28,6 +29,9 @@ typedef enum {
     // LogUSB_SetAddress_INT,
     LogUSB_UsbReset,
     LogUSB_Connect,
+    LogUsbDfu_Download,
+    LogUsbDfu_Proc_Download,
+    LogUsbDfu_Proc_Manifest,
 } log_type_t;
 
 void log_push(log_type_t type, uint32_t data);

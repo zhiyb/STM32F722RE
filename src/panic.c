@@ -4,20 +4,9 @@
 
 void panic_init()
 {
-    uint32_t pg = NVIC_GetPriorityGrouping();
-
-    // Enable Memory Management Fault
-    NVIC_SetPriority(MemoryManagement_IRQn, NVIC_EncodePriority(pg, NvicPriorityFault, 0));
-    NVIC_EnableIRQ(MemoryManagement_IRQn);
-
-    // Enable Bus Fault
-    NVIC_SetPriority(BusFault_IRQn, NVIC_EncodePriority(pg, NvicPriorityFault, 0));
-    NVIC_EnableIRQ(BusFault_IRQn);
-
-    // Enable Usage Fault
+    // Enable Usage Fault, Bus Fault, Memory Management Fault
     // Runtime errors are traped by undefined instructions
-    NVIC_SetPriority(UsageFault_IRQn, NVIC_EncodePriority(pg, NvicPriorityFault, 0));
-    NVIC_EnableIRQ(UsageFault_IRQn);
+    SCB->SHCSR |= SCB_SHCSR_USGFAULTENA_Msk | SCB_SHCSR_BUSFAULTENA_Msk | SCB_SHCSR_MEMFAULTENA_Msk;
 }
 
 void HardFault_Handler()

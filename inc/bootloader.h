@@ -18,7 +18,7 @@ typedef struct {
 } bootloader_req_t;
 
 extern char __bootloader_req;
-static bootloader_req_t * const bootloader_req = (bootloader_req_t *)&__bootloader_req;
+static volatile bootloader_req_t * const bootloader_req = (bootloader_req_t *)&__bootloader_req;
 
 typedef union {
     uint8_t data[256];
