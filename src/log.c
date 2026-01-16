@@ -5,6 +5,7 @@
 
 #define LOG_BUFFER_SIZE 256
 
+#ifdef ENABLE_LOGGING
 typedef struct {
     log_type_t ev;
     // uint32_t ms;
@@ -31,3 +32,4 @@ void log_push(log_type_t type, uint32_t data)
     ev.data = data;
     log.entry[wptr] = ev;
 }
+#endif

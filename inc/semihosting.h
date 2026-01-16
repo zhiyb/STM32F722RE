@@ -1,5 +1,8 @@
 #pragma once
 
+// #define ENABLE_DEBUGGING
+
+#ifdef ENABLE_DEBUGGING
 static inline void dbg_bkpt()
 {
     asm volatile ("bkpt 0");
@@ -22,6 +25,13 @@ static inline void dbg_puts(const char *str)
     dbg_puts("DEBUG " __FILE__ ":" DBG_STR(__LINE__) " " str "\r\n"); \
     dbg_bkpt(); \
 } while (0)
+
+#else   // ENABLE_DEBUGGING
+static inline void dbg_bkpt() {}
+static inline void dbg_puts(const char *str) {}
+#define DBG_BKPT(str)
+
+#endif  // ENABLE_DEBUGGING
 
 #define TODO()  DBG_BKPT("TODO")
 

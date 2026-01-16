@@ -18,7 +18,7 @@ static uint8_t usb_hw_ep_fifo_alloc(usb_if_t usb_if, uint32_t size)
     size /= 4;
     usb->hw.fifo_num += 1;
     usb->hw.fifo_top += size;
-    if (usb->hw.fifo_top > usb->hw_info->ram_size / 4)
+    if (usb->hw.fifo_top > usb_hw_ifs[usb_if].ram_size / 4)
         PANIC("USB RAM out of space");
 
     switch (num) {

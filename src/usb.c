@@ -5,7 +5,6 @@ usb_t usb_ifs[NumUsbIfs];
 
 void usb_init(usb_if_t usb_if)
 {
-    usb_ifs[usb_if].hw_info = &usb_hw_ifs[usb_if];
     usb_hw_init(usb_if);
 }
 

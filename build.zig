@@ -128,7 +128,10 @@ pub fn build(b: *std.Build) void {
             // "src/usb_hid.c",
             // "src/usb_cdc.c",
         }),
-        .flags = &(target_flags ++ .{}),
+        .flags = &(target_flags ++ .{
+            "-DENABLE_DEBUGGING",
+            "-DENABLE_LOGGING",
+        }),
     });
 
     fw_exe.setLinkerScript(b.path("STM32F722RE_FW_ITCM.ld"));
@@ -160,6 +163,8 @@ pub fn build(b: *std.Build) void {
         .flags = &(target_flags ++ .{
             "-DBOOTLOADER",
             "-DBOOTLOADER_USB",
+            // "-DENABLE_DEBUGGING",
+            // "-DENABLE_LOGGING",
         }),
     });
 
@@ -182,6 +187,8 @@ pub fn build(b: *std.Build) void {
         .flags = &(target_flags ++ .{
             "-DBOOTLOADER",
             "-DBOOTLOADER_FLASH",
+            // "-DENABLE_DEBUGGING",
+            // "-DENABLE_LOGGING",
         }),
     });
 

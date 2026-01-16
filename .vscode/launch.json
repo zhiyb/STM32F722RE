@@ -9,7 +9,7 @@
             /* Configuration for the application debug binary */
             "type": "cortex-debug",
             "request": "launch",
-            "name": "Debug firmware (zhiyb-RPi0W2-2:3333)",
+            "name": "Debug Application firmware (zhiyb-RPi0W2-2:3333)",
             "servertype": "external",
             "cwd": "${workspaceRoot}",
             "preLaunchTask": "zig build",

@@ -34,7 +34,7 @@ static void usb_hw_reset(usb_if_t usb_if)
 
     // Disable endpoints
     usb_t *usb = &usb_ifs[usb_if];
-    for (uint32_t ep = 0; ep < hw->num_ep; ep++) {
+    for (uint32_t ep = 0; ep < UsbNumEndpoints; ep++) {
         usb->ep[ep].in.pkts = 0;
         USB_OTG_INEndpointTypeDef *hw_ep_in = HW_EP_IN(hw->base, ep);
         uint32_t ctl = hw_ep_in->DIEPCTL;

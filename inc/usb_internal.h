@@ -25,7 +25,6 @@ typedef struct usb_hw_info_t {
 extern const usb_hw_info_t usb_hw_ifs[NumUsbIfs];
 
 typedef struct usb_t {
-    const usb_hw_info_t *hw_info;
     struct {
         uint16_t fifo_top;
         uint8_t fifo_num;
@@ -47,7 +46,7 @@ typedef struct usb_t {
             uint32_t pkts;
             uint16_t max_size;
         } in;
-    } ep[8];
+    } ep[UsbNumEndpoints];
     struct {
         // Per the USB 2.0 specification, normally, during a SETUP packet error,
         // a host does not send more than three back-to-back SETUP packets to the same endpoint

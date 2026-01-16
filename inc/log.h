@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+// #define ENABLE_LOGGING
+
 typedef enum {
     LogNone,
 
@@ -30,4 +32,8 @@ typedef enum {
     LogFlash_INT,
 } log_type_t;
 
+#ifdef ENABLE_LOGGING
 void log_push(log_type_t type, uint32_t data);
+#else
+static inline void log_push(log_type_t type, uint32_t data) {}
+#endif

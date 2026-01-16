@@ -28,21 +28,27 @@ typedef enum {
 #endif
     UsbInterfaceDfuRT,
 #endif
-    UsbNumInterfaces,
+    UsbNumInterfaces
 } usb_interface_id_t;
 
-// typedef enum {
-//     UsbEp0Ctrl = 0,
-//     UsbEpBtHciEvents = 1,
-//     UsbEpBtACLData = 2,
-//     UsbEpBtACLDataIn = 6,   // Double-buffering channel
-//     UsbEpBtVoice = 3,
-//     UsbEpBtVoiceIn = 7,     // Double-buffering channel
-//     // Alternative interfaces
-//     UsbEpHid = 4,
-//     UsbEpCDCComm = 4,
-//     UsbEpCDCData = 5,
-// } usb_endpoint_t;
+typedef enum {
+#ifdef BOOTLOADER
+    UsbEp0Ctrl = 0,
+    UsbNumEndpoints = 1
+#else
+    UsbEp0Ctrl = 0,
+    // UsbEpBtHciEvents = 1,
+    // UsbEpBtACLData = 2,
+    // UsbEpBtACLDataIn = 6,   // Double-buffering channel
+    // UsbEpBtVoice = 3,
+    // UsbEpBtVoiceIn = 7,     // Double-buffering channel
+    // // Alternative interfaces
+    // UsbEpHid = 4,
+    // UsbEpCDCComm = 4,
+    // UsbEpCDCData = 5,
+    UsbNumEndpoints = 1
+#endif
+} usb_endpoint_t;
 
 typedef enum {
     UsbEpDisabled = 0b00,
