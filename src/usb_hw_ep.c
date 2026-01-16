@@ -52,7 +52,6 @@ void usb_hw_ep_init(usb_if_t usb_if)
     uint32_t daintmsk = 0;
 
     // IN endpoint 0
-    uint8_t ch = UsbEp0Ctrl;
     uint32_t fifo = usb_hw_ep_fifo_alloc(usb_if, 64 * 2);
     USB_OTG_INEndpointTypeDef *hw_ep_in = HW_EP_IN(hw->base, 0);
     uint32_t epsize = usb_if == UsbIfHs ? 64 : 0;

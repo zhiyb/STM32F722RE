@@ -5,6 +5,7 @@
 #include "semihosting.h"
 #include "irq.h"
 #include "usb.h"
+#include "usb_dfu.h"
 
 static void rcc_init()
 {
@@ -184,34 +185,20 @@ void main()
 {
     board_init();
 
-    dbg_puts("firmware\r\n");
-    dbg_bkpt();
-
-    // dbg_puts("USB connect\r\n");
-    // usb_connect(UsbIfFs, true);
-    // usb_connect(UsbIfHs, true);
+    // dbg_puts("firmware\r\n");
     // dbg_bkpt();
 
-    // dbg_puts("USB disconnect\r\n");
-    // usb_connect(UsbIfFs, false);
-    // usb_connect(UsbIfHs, false);
-    // dbg_bkpt();
+    usb_connect(UsbIfFs, true);
+    usb_connect(UsbIfHs, true);
 
     for (;;) {
         usb_process(UsbIfFs);
         usb_process(UsbIfHs);
+
+        // usb_hid_process(now_ms);
+        // if (uart_rx_available() && usb_cdc_tx_free())
+        //     usb_cdc_tx_write(uart_rx());
+        // if (usb_cdc_rx_available() && uart_tx_free())
+        //     uart_tx(usb_cdc_rx_read());
     }
-
-//     for (;;) {
-//         usb_process();
-//         // usb_hid_process(now_ms);
-
-// #if 0
-//         if (uart_rx_available() && usb_cdc_tx_free())
-//             usb_cdc_tx_write(uart_rx());
-
-//         if (usb_cdc_rx_available() && uart_tx_free())
-//             uart_tx(usb_cdc_rx_read());
-// #endif
-//     }
 }

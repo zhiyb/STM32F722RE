@@ -96,22 +96,12 @@ void usb_ep0_setup(usb_if_t usb_if, bool buf_valid)
     case 0x21:
         // Class interface request
 #ifdef BOOTLOADER
-        if (usb_dfu_state() >= UsbDfuState_dfuIDLE) {
-            switch (setup->wIndex) {
-            case UsbInterfaceDfuMode:
-                ret = usb_dfu_setup(setup, usb->ep0.buf, usb->ep[0].out.offset);
-                break;
-            default:
-                DBG_BKPT("Unknown Interface");
-            }
-        } else {
-            switch (setup->wIndex) {
-            case UsbInterfaceDfuRT:
-                ret = usb_dfu_setup(setup, usb->ep0.buf, usb->ep[0].out.offset);
-                break;
-            default:
-                DBG_BKPT("Unknown Interface");
-            }
+        switch (setup->wIndex) {
+        case UsbInterfaceDfuMode:
+            ret = usb_dfu_setup(setup, usb->ep0.buf, usb->ep[0].out.offset);
+            break;
+        default:
+            DBG_BKPT("Unknown Interface");
         }
 #else
         switch (setup->wIndex) {
@@ -125,6 +115,9 @@ void usb_ep0_setup(usb_if_t usb_if, bool buf_valid)
             ret = usb_cdc_setup(setup);
             break;
 #endif
+        case UsbInterfaceDfuRT:
+            ret = usb_dfu_setup(setup, usb->ep0.buf, usb->ep[0].out.offset);
+            break;
         default:
             DBG_BKPT("Unknown Interface");
         }

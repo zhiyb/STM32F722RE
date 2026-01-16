@@ -5,6 +5,7 @@
 #include "usb.h"
 #include "usb_hw.h"
 #include "usb_internal.h"
+#include "usb_dfu.h"
 
 const usb_hw_info_t usb_hw_ifs[NumUsbIfs] = {
     [UsbIfFs] = {
@@ -220,6 +221,9 @@ static void usb_hw_irq(usb_if_t usb_if)
         handled = true;
         log_push(LogUSB_INT_UsbReset, gintsts);
         usb_hw_reset(usb_if);
+#ifdef BOOTLOADER
+        usb_dfu_usb_reset();
+#endif
     }
 
     // Enumeration done

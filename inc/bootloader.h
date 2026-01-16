@@ -31,5 +31,8 @@ typedef union {
     };
 } firmware_header_t;
 
-extern char __firmware_start;
-static const firmware_header_t * const firmware_header = (firmware_header_t *)&__firmware_start;
+extern char __firmware_start, __firmware_end;
+static const volatile firmware_header_t * const firmware_header = (firmware_header_t *)&__firmware_start;
+
+// Reboot to USB DFU mode
+void bootloader_run_usb_dfu();

@@ -97,8 +97,6 @@ typedef struct PACKED {
     uint8_t buf[];
 } desc_string_lang_t;
 
-// static desc_string_lang_t desc_string_buf ALIGNED(4);
-
 static void desc_string_copy(desc_string_lang_t *desc, const void *data, uint16_t len)
 {
     // Convert from ASCII to UTF-16 encoding
@@ -155,7 +153,6 @@ static const uint8_t *desc_string(uint8_t *desc_buf, uint8_t index, uint16_t *le
             str[i] = v >= 10 ? v - 10 + 'a' : v + '0';
         }
         str[96 / 4] = '\0';
-        // static const uint8_t str[] = "(String_iSerialNumber)";
         desc_string_copy(desc, str, sizeof(str) - 1);
         break;
     }
@@ -185,20 +182,75 @@ static const uint8_t *desc_string(uint8_t *desc_buf, uint8_t index, uint16_t *le
 
 // Descriptor data
 
+#ifdef BOOTLOADER
+static const desc_device_t desc_device ALIGNED(4) = {
+    .bLength = sizeof(desc_device_t),
+    .bDescriptorType = DESC_TYPE_DEVICE,
+    .bcdUSB = 0x0100,
+    .bDeviceClass = 0x00,       // See interface
+    .bDeviceSubClass = 0x00,    // See interface
+    .bDeviceProtocol = 0x00,    // See interface
+    .bMaxPacketSize0 = 64,
+    .idVendor = 0x0483,         // STMicroelectronics
+    .idProduct = 0x5750,
+    .bcdDevice = 0,
+    .iManufacturer = String_iManufacturer,
+    .iProduct = String_iProduct,
+    .iSerialNumber = String_iSerialNumber,
+    .bNumConfigurations = 1,
+};
+
+static const struct PACKED {
+    desc_configuration_t configuration;
+    struct PACKED {
+        desc_interface_t interface;
+        desc_dfu_rt_functional_t functional;
+    } dfu_mode;
+} desc_configuration ALIGNED(4) = {
+    .configuration = {
+        .bLength = sizeof(desc_configuration_t),
+        .bDescriptorType = DESC_TYPE_CONFIGURATION,
+        .wTotalLength = sizeof(desc_configuration),
+        .bNumInterfaces = 1,
+        .bConfigurationValue = 1,
+        .iConfiguration = 0,
+        .bmAttributes = 0xe0,
+        .bMaxPower = 100 / 2,
+    },
+    .dfu_mode = {
+        .interface = {
+            .bLength = sizeof(desc_interface_t),
+            .bDescriptorType = DESC_TYPE_INTERFACE,
+            .bInterfaceNumber = UsbInterfaceDfuMode,
+            .bAlternateSetting = 0,
+            .bNumEndpoints = 0,
+            .bInterfaceClass = 0xfe,    // Application Specific
+            .bInterfaceSubClass = 0x01, // Device Firmware Upgrade
+            .bInterfaceProtocol = 0x02, // DFU mode
+            .iInterface = String_DFU_Mode,
+        },
+        .functional = {
+            .bLength = sizeof(desc_dfu_rt_functional_t),
+            .bDescriptorType = DESC_TYPE_DFU_FUNCTIONAL,
+            // bitWillDetach, bitManifestationTolerant
+            // bitCanUpload, bitCanDnload
+            .bmAttributes = 0x0f,
+            .wDetachTimeOut = 1000,
+            .wTransferSize = USB_DFU_TRANSFER_SIZE,
+            .bcdDFUVersion = 0x0101,
+        },
+    },
+};
+
+#else   // BOOTLOADER
 static const desc_device_t desc_device ALIGNED(4) = {
     .bLength = sizeof(desc_device_t),
     .bDescriptorType = DESC_TYPE_DEVICE,
     .bcdUSB = 0x0200,
-#ifndef BOOTLOADER
 #if USB_ALT_IF != USB_ALT_IF_NONE
     .bDeviceClass = 0xef,       // Miscellaneous Device
     .bDeviceSubClass = 2,
     .bDeviceProtocol = 1,       // Interface Association
-#else
-    .bDeviceClass = 0xe0,       // Wireless Controller
-    .bDeviceSubClass = 0x01,    // RF Controller
-    .bDeviceProtocol = 0x01,    // Bluetooth Primary Controller
-#endif
 #else
     .bDeviceClass = 0xfe,       // Application Specific
     .bDeviceSubClass = 0x01,    // Device Firmware Upgrade
@@ -217,7 +269,6 @@ static const desc_device_t desc_device ALIGNED(4) = {
 static const struct PACKED {
     desc_configuration_t configuration;
 
-#ifndef BOOTLOADER
 #if USB_ALT_IF == USB_ALT_IF_HID
     struct PACKED {
         desc_interface_t interface;
@@ -239,15 +290,13 @@ static const struct PACKED {
             desc_endpoint_t endpoint_in;
         } data;
     } cdc;
-#endif
 
-#else   // BOOTLOADER
+#else   // USB_ALT_IF
     struct PACKED {
         desc_interface_t interface;
         desc_dfu_rt_functional_t functional;
     } dfu_rt;
 #endif
-
 } desc_configuration ALIGNED(4) = {
     .configuration = {
         .bLength = sizeof(desc_configuration_t),
@@ -260,7 +309,6 @@ static const struct PACKED {
         .bMaxPower = 100 / 2,
     },
 
-#ifndef BOOTLOADER
 #if USB_ALT_IF == USB_ALT_IF_HID
     .hid = {
         .interface = {
@@ -349,9 +397,8 @@ static const struct PACKED {
             },
         },
     },
-#endif
 
-#else   // BOOTLOADER
+#else   // USB_ALT_IF
     .dfu_rt = {
         .interface = {
             .bLength = sizeof(desc_interface_t),
@@ -377,97 +424,20 @@ static const struct PACKED {
     },
 #endif
 };
-
-static const desc_device_t desc_dfu_device ALIGNED(4) = {
-    .bLength = sizeof(desc_device_t),
-    .bDescriptorType = DESC_TYPE_DEVICE,
-    .bcdUSB = 0x0100,
-    .bDeviceClass = 0x00,       // See interface
-    .bDeviceSubClass = 0x00,    // See interface
-    .bDeviceProtocol = 0x00,    // See interface
-    .bMaxPacketSize0 = 64,
-    .idVendor = 0x0483,         // STMicroelectronics
-    .idProduct = 0x5750,
-    .bcdDevice = 0,
-    .iManufacturer = String_iManufacturer,
-    .iProduct = String_iProduct,
-    .iSerialNumber = String_iSerialNumber,
-    .bNumConfigurations = 1,
-};
-
-static const struct PACKED {
-    desc_configuration_t configuration;
-    struct PACKED {
-        desc_interface_t interface;
-        desc_dfu_rt_functional_t functional;
-    } dfu_mode;
-} desc_dfu_configuration ALIGNED(4) = {
-    .configuration = {
-        .bLength = sizeof(desc_configuration_t),
-        .bDescriptorType = DESC_TYPE_CONFIGURATION,
-        .wTotalLength = sizeof(desc_dfu_configuration),
-        .bNumInterfaces = 1,
-        .bConfigurationValue = 1,
-        .iConfiguration = 0,
-        .bmAttributes = 0xe0,
-        .bMaxPower = 100 / 2,
-    },
-    .dfu_mode = {
-        .interface = {
-            .bLength = sizeof(desc_interface_t),
-            .bDescriptorType = DESC_TYPE_INTERFACE,
-            .bInterfaceNumber = UsbInterfaceDfuMode,
-            .bAlternateSetting = 0,
-            .bNumEndpoints = 0,
-            .bInterfaceClass = 0xfe,    // Application Specific
-            .bInterfaceSubClass = 0x01, // Device Firmware Upgrade
-            .bInterfaceProtocol = 0x02, // DFU mode
-            .iInterface = String_DFU_Mode,
-        },
-        .functional = {
-            .bLength = sizeof(desc_dfu_rt_functional_t),
-            .bDescriptorType = DESC_TYPE_DFU_FUNCTIONAL,
-            // bitWillDetach, bitManifestationTolerant
-            // bitCanUpload, bitCanDnload
-            .bmAttributes = 0x0f,
-            .wDetachTimeOut = 1000,
-            .wTransferSize = USB_DFU_TRANSFER_SIZE,
-            .bcdDFUVersion = 0x0101,
-        },
-    },
-};
+#endif  // BOOTLOADER
 
 const uint8_t *usb_desc_get(uint8_t *desc_buf, uint8_t type, uint8_t index, uint16_t *len)
 {
     switch (type) {
     case DESC_TYPE_DEVICE:
-#ifdef BOOTLOADER
-        if (usb_dfu_state() >= UsbDfuState_dfuIDLE) {
-            *len = sizeof(desc_dfu_device);
-            return (const uint8_t *)&desc_dfu_device;
-        } else {
-            *len = sizeof(desc_device);
-            return (const uint8_t *)&desc_device;
-        }
-#else
         *len = sizeof(desc_device);
         return (const uint8_t *)&desc_device;
-#endif
     case DESC_TYPE_CONFIGURATION:
-#ifdef BOOTLOADER
-        if (usb_dfu_state() >= UsbDfuState_dfuIDLE) {
-            *len = sizeof(desc_dfu_configuration);
-            return (const uint8_t *)&desc_dfu_configuration;
-        } else {
-            *len = sizeof(desc_configuration);
-            return (const uint8_t *)&desc_configuration;
-        }
-#else
         *len = sizeof(desc_configuration);
         return (const uint8_t *)&desc_configuration;
-#endif
     case DESC_TYPE_DEVICE_QUALIFIER:
         // Not a high speed device, not supported
+        // TODO
         return 0;
     case DESC_TYPE_STRING:
         return desc_string(desc_buf, index, len);

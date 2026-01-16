@@ -116,12 +116,13 @@ pub fn build(b: *std.Build) void {
             "src/panic.c",
             "src/log.c",
             "src/systick.c",
-            "src/flash.c",
+            "src/bootloader.c",
             "src/usb.c",
             "src/usb_hw.c",
             "src/usb_hw_ep.c",
             "src/usb_ep0_setup.c",
             "src/usb_desc.c",
+            "src/usb_dfu_rt.c",
             // "src/dma.c",
             // "src/uart.c",
             // "src/usb_hid.c",
@@ -156,7 +157,10 @@ pub fn build(b: *std.Build) void {
             "src/usb_desc.c",
             "src/usb_dfu.c",
         }),
-        .flags = &(target_flags ++ .{"-DBOOTLOADER"}),
+        .flags = &(target_flags ++ .{
+            "-DBOOTLOADER",
+            "-DBOOTLOADER_USB",
+        }),
     });
 
     bl_usb_exe.setLinkerScript(b.path("STM32F722RE_BL_USB.ld"));
@@ -175,7 +179,10 @@ pub fn build(b: *std.Build) void {
             "src/irq.c",
             "src/boot_flash.c",
         },
-        .flags = &(target_flags ++ .{"-DBOOTLOADER_FLASH"}),
+        .flags = &(target_flags ++ .{
+            "-DBOOTLOADER",
+            "-DBOOTLOADER_FLASH",
+        }),
     });
 
     bl_flash_exe.setLinkerScript(b.path("STM32F722RE_BL_FLASH.ld"));

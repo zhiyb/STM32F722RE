@@ -5,6 +5,7 @@
 #include "bootloader.h"
 #include "macros.h"
 #include "irq.h"
+#include "flash.h"
 #include "usb.h"
 #include "usb_dfu.h"
 
@@ -64,10 +65,27 @@ static void rcc_init()
 
 static void board_init()
 {
-    SCB_EnableICache();
-    SCB_EnableDCache();
     rcc_init();
     panic_init();
+
+    // Initialise MPU and cache
+    static const ARM_MPU_Region_t mpu_regions[] = {
+        {
+            // Disable exec, read cache and write cache on flash AXIM port
+            // See errata: Cortex-M7 data corruption when using data cache configured in write-through
+            // Also to make flash read/write easier, no cache maintenance needed
+            .RBAR = ARM_MPU_RBAR(0, FLASHAXI_BASE),
+            .RASR = ARM_MPU_RASR(1, ARM_MPU_AP_PRIV, 0b000, 0, 0, 0, 0x00, ARM_MPU_REGION_SIZE_512KB)
+        }, {
+            // Also for flash information block
+            .RBAR = ARM_MPU_RBAR(0, 0x1ff00000),
+            .RASR = ARM_MPU_RASR(1, ARM_MPU_AP_PRIV, 0b000, 0, 0, 0, 0x00, ARM_MPU_REGION_SIZE_1MB)
+        },
+    };
+    ARM_MPU_Load(mpu_regions, ARRAY_SIZE(mpu_regions));
+    ARM_MPU_Enable(MPU_CTRL_PRIVDEFENA_Msk);		// Fallback to default mapping
+    SCB_EnableICache();
+    SCB_EnableDCache();
 
     // Configure interrupt vector table location
     SCB->VTOR = (uint32_t)irq_vectors;
@@ -186,6 +204,8 @@ static void board_init()
     // Wait for IO compensation cell
     while (!(SYSCFG->CMPCR & SYSCFG_CMPCR_READY_Msk));
 
+    flash_init();
+
     usb_init(UsbIfFs);
     usb_init(UsbIfHs);
 }
@@ -193,40 +213,11 @@ static void board_init()
 void main()
 {
     board_init();
-
-    // dbg_puts("bootloader\r\n");
-    // dbg_bkpt();
-
-    // dbg_puts("USB connect\r\n");
     usb_connect(UsbIfFs, true);
     usb_connect(UsbIfHs, true);
-    // dbg_bkpt();
-
-    // dbg_puts("USB disconnect\r\n");
-    // usb_connect(UsbIfFs, false);
-    // usb_connect(UsbIfHs, false);
-    // dbg_bkpt();
-
-    // uint32_t ms = systick_ms();
-    // while (systick_ms() - ms < 5000);
-    // dbg_bkpt();
 
     for (;;) {
         usb_process(UsbIfFs);
         usb_process(UsbIfHs);
-        usb_dfu_process();
     }
-
-//     for (;;) {
-//         usb_process();
-//         // usb_hid_process(now_ms);
-
-// #if 0
-//         if (uart_rx_available() && usb_cdc_tx_free())
-//             usb_cdc_tx_write(uart_rx());
-
-//         if (usb_cdc_rx_available() && uart_tx_free())
-//             uart_tx(usb_cdc_rx_read());
-// #endif
-//     }
 }

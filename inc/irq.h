@@ -6,9 +6,12 @@
 
 typedef enum {
     NvicPriorityFault,
+
     NvicPriorityUsbHsHP,
     NvicPriorityUsbHsLP,
     NvicPriorityUsbFs,
+
+    NvicPriorityFlash,
 } nvic_priority_t;
 
 extern const void * const irq_vectors[];
