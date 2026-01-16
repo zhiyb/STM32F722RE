@@ -16,7 +16,7 @@ SECTIONS
   .header :
   {
     KEEP (*(.fw_header))
-  } >EXEC AT> LOAD
+  } >EXEC AT> LOAD =0xff
 
   /* The program code and other data goes into EXEC */
   . = ALIGN(4);
@@ -32,7 +32,7 @@ SECTIONS
     KEEP (*(.fini))
 
     . = ALIGN(4);
-  } >EXEC AT> LOAD
+  } >EXEC AT> LOAD =0xff
 
   /* Constant data goes into EXEC */
   .rodata :
@@ -41,26 +41,26 @@ SECTIONS
     *(.rodata)         /* .rodata sections (constants, strings, etc.) */
     *(.rodata*)        /* .rodata* sections (constants, strings, etc.) */
     . = ALIGN(4);
-  } >EXEC AT> LOAD
+  } >EXEC AT> LOAD =0xff
 
   .ARM.extab :
   {
     *(.ARM.extab* .gnu.linkonce.armextab.*)
-  } >EXEC AT> LOAD
+  } >EXEC AT> LOAD =0xff
 
   .ARM :
   {
     __exidx_start = .;
     *(.ARM.exidx*)
     __exidx_end = .;
-  } >EXEC AT> LOAD
+  } >EXEC AT> LOAD =0xff
 
   .preinit_array :
   {
     PROVIDE_HIDDEN (__preinit_array_start = .);
     KEEP (*(.preinit_array*))
     PROVIDE_HIDDEN (__preinit_array_end = .);
-  } >EXEC AT> LOAD
+  } >EXEC AT> LOAD =0xff
 
   .init_array :
   {
@@ -68,7 +68,7 @@ SECTIONS
     KEEP (*(SORT(.init_array.*)))
     KEEP (*(.init_array*))
     PROVIDE_HIDDEN (__init_array_end = .);
-  } >EXEC AT> LOAD
+  } >EXEC AT> LOAD =0xff
 
   .fini_array :
   {
@@ -76,7 +76,7 @@ SECTIONS
     KEEP (*(SORT(.fini_array.*)))
     KEEP (*(.fini_array*))
     PROVIDE_HIDDEN (__fini_array_end = .);
-  } >EXEC AT> LOAD
+  } >EXEC AT> LOAD =0xff
 
 
   /* Used by the startup to initialize data */
@@ -94,7 +94,7 @@ SECTIONS
 
     . = ALIGN(4);
     __data_end = .;
-  } >RAM AT> LOAD
+  } >RAM AT> LOAD =0xff
 
   /* Uninitialized data section */
   . = ALIGN(4);

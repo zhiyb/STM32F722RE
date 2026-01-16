@@ -1,11 +1,13 @@
 const std = @import("std");
 
-pub fn build_bin_to_h(b: *std.Build) *std.Build.Step.Compile {
+pub fn build_tool(b: *std.Build, name: []const u8) *std.Build.Step.Compile {
     const exe = b.addExecutable(.{
-        .name = "bin_to_h",
+        .name = name,
         .root_module = b.createModule(.{
-            .root_source_file = b.path("tools/bin_to_h.zig"),
+            .root_source_file = b.path(b.fmt("tools/{s}.zig", .{name})),
             .target = b.graph.host,
+            // .optimize = .ReleaseSafe,
+            // .strip = true,
         }),
     });
     return exe;
@@ -30,7 +32,7 @@ pub fn build(b: *std.Build) void {
         .cpu_arch = .thumb,
         .cpu_model = .{ .explicit = &std.Target.arm.cpu.cortex_m7 },
         .cpu_features_add = features,
-        .abi = .musleabihf,
+        .abi = .eabihf,
         .os_tag = .freestanding,
     });
 
@@ -82,7 +84,7 @@ pub fn build(b: *std.Build) void {
     //
     // If neither case applies to you, feel free to delete the declaration you
     // don't need and to put everything under a single module.
-    const fw_exe = b.addExecutable(.{
+    const fw_elf = b.addExecutable(.{
         .name = "fw",
         .root_module = b.createModule(.{
             // b.createModule defines a new module just like b.addModule but,
@@ -109,7 +111,7 @@ pub fn build(b: *std.Build) void {
     });
 
     // C source files
-    fw_exe.addCSourceFiles(.{
+    fw_elf.addCSourceFiles(.{
         .files = &(target_c_sources ++ .{
             "src/irq.c",
             "src/main.c",
@@ -134,10 +136,10 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    fw_exe.setLinkerScript(b.path("STM32F722RE_FW_ITCM.ld"));
+    fw_elf.setLinkerScript(b.path("STM32F722RE_FW_ITCM.ld"));
 
     // USB bootloader
-    const bl_usb_exe = b.addExecutable(.{
+    const bl_usb_elf = b.addExecutable(.{
         .name = "bl_usb",
         .root_module = b.createModule(.{
             .target = target,
@@ -145,7 +147,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    bl_usb_exe.addCSourceFiles(.{
+    bl_usb_elf.addCSourceFiles(.{
         .files = &(target_c_sources ++ .{
             "src/irq.c",
             "src/boot_usb.c",
@@ -168,10 +170,10 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    bl_usb_exe.setLinkerScript(b.path("STM32F722RE_BL_USB.ld"));
+    bl_usb_elf.setLinkerScript(b.path("STM32F722RE_BL_USB.ld"));
 
     // Flash bootloader
-    const bl_flash_exe = b.addExecutable(.{
+    const bl_flash_elf = b.addExecutable(.{
         .name = "bl_flash",
         .root_module = b.createModule(.{
             .target = target,
@@ -179,7 +181,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    bl_flash_exe.addCSourceFiles(.{
+    bl_flash_elf.addCSourceFiles(.{
         .files = &.{
             "src/irq.c",
             "src/boot_flash.c",
@@ -192,30 +194,30 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    bl_flash_exe.setLinkerScript(b.path("STM32F722RE_BL_FLASH.ld"));
+    bl_flash_elf.setLinkerScript(b.path("STM32F722RE_BL_FLASH.ld"));
 
-    inline for (.{ bl_usb_exe, bl_flash_exe, fw_exe }) |exe| {
+    inline for (.{ bl_usb_elf, bl_flash_elf, fw_elf }) |elf| {
         // C include paths
         inline for (.{
             "cmsis",
             "hal",
             "inc",
         }) |inc| {
-            exe.addIncludePath(b.path(inc));
+            elf.addIncludePath(b.path(inc));
         }
 
-        exe.entry = .{ .symbol_name = "Reset_Handler" };
+        elf.entry = .{ .symbol_name = "Reset_Handler" };
 
         // Use atomic symbols from compiler_rt
         // exe.bundle_compiler_rt = true;
         // exe.linkSystemLibrary("atomic");
 
         // Keep debug and frame pointers for debugging
-        exe.root_module.strip = false;
-        exe.root_module.omit_frame_pointer = false;
+        elf.root_module.strip = false;
+        elf.root_module.omit_frame_pointer = false;
         // exe.link_data_sections = true;
         // exe.link_function_sections = true;
-        exe.link_gc_sections = true;
+        elf.link_gc_sections = true;
         // LTO seems to cause compiler bugs
         // exe.want_lto = true;
 
@@ -224,19 +226,45 @@ pub fn build(b: *std.Build) void {
         // step). By default the install prefix is `zig-out/` but can be overridden
         // by passing `--prefix` or `-p`.
         // b.installArtifact(exe);
-        const installElf = b.addInstallBinFile(exe.getEmittedBin(), b.fmt("{s}.elf", .{exe.out_filename}));
+        const installElf = b.addInstallBinFile(elf.getEmittedBin(), b.fmt("{s}.elf", .{elf.out_filename}));
         b.getInstallStep().dependOn(&installElf.step);
 
-        const bin = exe.addObjCopy(.{ .format = .bin });
-        const installBin = b.addInstallBinFile(bin.getOutput(), b.fmt("{s}.bin", .{exe.out_filename}));
-        b.getInstallStep().dependOn(&installBin.step);
+        // // Firmware binary files for debugging
+        // const bin = exe.addObjCopy(.{ .format = .bin });
+        // const installBin = b.addInstallBinFile(bin.getOutput(), b.fmt("{s}.bin", .{exe.out_filename}));
+        // b.getInstallStep().dependOn(&installBin.step);
     }
 
-    const bl_usb_bin = bl_usb_exe.addObjCopy(.{ .format = .bin });
-    const bl_usb_h_tool = b.addRunArtifact(build_bin_to_h(b));
+    // Convert USB bootloader binary to header file for flash bootloader to use
+    const bl_usb_bin = bl_usb_elf.addObjCopy(.{ .format = .bin });
+    const bl_usb_h_tool = b.addRunArtifact(build_tool(b, "bin_to_h"));
     bl_usb_h_tool.addFileArg(bl_usb_bin.getOutput());
     const bl_usb_h = bl_usb_h_tool.addOutputFileArg("bl_usb.h");
-    bl_flash_exe.root_module.addIncludePath(bl_usb_h.dirname());
+    bl_flash_elf.root_module.addIncludePath(bl_usb_h.dirname());
+
+    // Output: Bootloader firmware BIN file
+    const bl_flash_bin = bl_flash_elf.addObjCopy(.{ .format = .bin });
+    const bl_flash_bin_install = b.addInstallFile(bl_flash_bin.getOutput(), b.fmt("{s}.bin", .{bl_flash_elf.out_filename}));
+    b.getInstallStep().dependOn(&bl_flash_bin_install.step);
+
+    // Output: Bootloader firmware HEX file
+    const bl_flash_hex = bl_flash_elf.addObjCopy(.{ .format = .hex });
+    const bl_flash_hex_install = b.addInstallFile(bl_flash_hex.getOutput(), b.fmt("{s}.hex", .{bl_flash_elf.out_filename}));
+    b.getInstallStep().dependOn(&bl_flash_hex_install.step);
+
+    // Output: Application firmware UF2 file
+    const fw_bin = fw_elf.addObjCopy(.{ .format = .bin });
+    const fw_uf2_tool = b.addRunArtifact(build_tool(b, "bin_to_uf2"));
+    fw_uf2_tool.addArgs(&.{
+        // Firmware load address
+        "-b", "0x08004000",
+        // Family ID
+        "-f", "0x53b80f00",
+    });
+    fw_uf2_tool.addFileArg(fw_bin.getOutput());
+    const fw_uf2 = fw_uf2_tool.addOutputFileArg("fw.uf2");
+    const fw_uf2_install = b.addInstallFile(fw_uf2, b.fmt("{s}.uf2", .{fw_elf.out_filename}));
+    b.getInstallStep().dependOn(&fw_uf2_install.step);
 
     // // This creates a top level step. Top level steps have a name and can be
     // // invoked by name when running `zig build` (e.g. `zig build run`).
