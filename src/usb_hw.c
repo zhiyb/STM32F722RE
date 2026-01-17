@@ -19,9 +19,10 @@ const usb_hw_info_t usb_hw_ifs[NumUsbIfs] = {
         .ram_size = 1024 * 4,
         .num_ep = 8,
 #ifdef BOOTLOADER
+        // USB bootloader runs in ITCM, DMA stalls when accessing .rodata
         .use_dma = false,
 #else
-        .use_dma = false,
+        .use_dma = true,
 #endif
     },
 };
@@ -109,23 +110,32 @@ void usb_hw_init(usb_if_t usb_if)
 
     // Initialise USB in device mode
     if (usb_if == UsbIfHs) {
-        // Allocate 25% for iso IN DMA, enable transceiver delay, enumerate HS,
-        // ignore zero-length status OUT packets
-        hw_dev->DCFG = (0b00ul << USB_OTG_DCFG_PERSCHIVL_Pos) | (1ul << 14 /* XCVRDLY */) |
-            (1ul << USB_OTG_DCFG_NZLSOHSK_Msk);
-#if 0
-        // Data transfer threshold
-        hw_dev->DTHRCTL = (32u << USB_OTG_DTHRCTL_RXTHRLEN_Pos) | (32u << USB_OTG_DTHRCTL_TXTHRLEN_Pos) |
-            USB_OTG_DTHRCTL_RXTHREN_Msk | USB_OTG_DTHRCTL_ISOTHREN_Msk |
-            USB_OTG_DTHRCTL_NONISOTHREN_Msk | USB_OTG_DTHRCTL_ARPEN_Msk;
+        if (hw->use_dma) {
+            // Allocate 25% for iso IN DMA, enable transceiver delay, enumerate HS,
+            // reject non-zero-length status OUT packets
+            hw_dev->DCFG = (0b00ul << USB_OTG_DCFG_PERSCHIVL_Pos) |
+                (1ul << 14 /* XCVRDLY */) | USB_OTG_DCFG_NZLSOHSK_Msk;
+#if 1
+            // Data transfer threshold 8x4 bytes
+            hw_dev->DTHRCTL = (8u << USB_OTG_DTHRCTL_RXTHRLEN_Pos) |
+                (8u << USB_OTG_DTHRCTL_TXTHRLEN_Pos) |
+                USB_OTG_DTHRCTL_RXTHREN_Msk | USB_OTG_DTHRCTL_ISOTHREN_Msk |
+                USB_OTG_DTHRCTL_NONISOTHREN_Msk | USB_OTG_DTHRCTL_ARPEN_Msk;
 #else
-        // Disable thresholding
-        hw_dev->DTHRCTL = 0;
+            // Disable thresholding
+            hw_dev->DTHRCTL = 0;
 #endif
-        // DMA disable
-        hw_g->GAHBCFG = 0;
-        // DMA enable, AHB burst 32 bytes
-        // hw_g->GAHBCFG = USB_OTG_GAHBCFG_DMAEN_Msk | (5 << USB_OTG_GAHBCFG_HBSTLEN_Pos);
+            // DMA enable, AHB burst 8x4 bytes
+            hw_g->GAHBCFG = USB_OTG_GAHBCFG_DMAEN_Msk | (5 << USB_OTG_GAHBCFG_HBSTLEN_Pos);
+        } else {
+            // Enable transceiver delay, enumerate HS,
+            // reject non-zero-length status OUT packets
+            hw_dev->DCFG = (1ul << 14 /* XCVRDLY */) | USB_OTG_DCFG_NZLSOHSK_Msk;
+            // Disable thresholding
+            hw_dev->DTHRCTL = 0;
+            // DMA disable
+            hw_g->GAHBCFG = 0;
+        }
     } else {
         // Enumerate FS, ignore zero-length status OUT packets
         hw_dev->DCFG = (0b11ul << USB_OTG_DCFG_DSPD_Pos) |
@@ -318,6 +328,16 @@ static void usb_hw_irq(usb_if_t usb_if)
     }
 }
 
+void OTG_FS_IRQHandler()
+{
+    usb_hw_irq(UsbIfFs);
+}
+
+void OTG_HS_IRQHandler()
+{
+    usb_hw_irq(UsbIfHs);
+}
+
 void usb_hw_process(usb_if_t usb_if)
 {
     usb_t *usb = &usb_ifs[usb_if];
@@ -331,6 +351,16 @@ void usb_hw_process(usb_if_t usb_if)
     case UsbEvSetup:
         if (ev.ep != 0)
             PANIC("SETUP received on unexpected endpoint");
+        if (usb_hw_ifs[usb_if].use_dma) {
+            // There is possibility that multiple SETUP data may have been received
+            // Only the last is valid, so ignore all earlier data
+            const usb_hw_info_t *hw = &usb_hw_ifs[usb_if];
+            USB_OTG_OUTEndpointTypeDef *hw_ep_out = HW_EP_OUT(hw->base, 0);
+            uint32_t setup_cnt = 3 -
+                ((hw_ep_out->DOEPTSIZ & USB_OTG_DOEPTSIZ_STUPCNT_Msk) >> USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+            if (setup_cnt > 1)
+                usb->ep0.setup[0] = usb->ep0.setup[setup_cnt - 1];
+        }
         usb_ep0_setup(usb_if, false);
         break;
     case UsbEvOut:
@@ -342,14 +372,4 @@ void usb_hw_process(usb_if_t usb_if)
     default:
         TODO();
     }
-}
-
-void OTG_FS_IRQHandler()
-{
-    usb_hw_irq(UsbIfFs);
-}
-
-void OTG_HS_IRQHandler()
-{
-    usb_hw_irq(UsbIfHs);
 }
