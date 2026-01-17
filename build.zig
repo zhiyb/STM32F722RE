@@ -266,6 +266,26 @@ pub fn build(b: *std.Build) void {
     const fw_uf2_install = b.addInstallFile(fw_uf2, b.fmt("{s}.uf2", .{fw_elf.out_filename}));
     b.getInstallStep().dependOn(&fw_uf2_install.step);
 
+    // Output: Application firmware DFU file
+    const fw_dfu_tool = b.addRunArtifact(build_tool(b, "dfu_suffix"));
+    fw_dfu_tool.addArgs(&.{
+        // Operation: Add suffix
+        "-a",
+        // idVendor
+        "-v",
+        "0x0483", // STMicroelectronics
+        // idProduct
+        "-p",
+        "0x5750",
+        // bcdDevice
+        "-d",
+        "0",
+    });
+    fw_dfu_tool.addFileArg(fw_uf2);
+    const fw_dfu = fw_dfu_tool.addOutputFileArg("fw.dfu");
+    const fw_dfu_install = b.addInstallFile(fw_dfu, b.fmt("{s}.dfu", .{fw_elf.out_filename}));
+    b.getInstallStep().dependOn(&fw_dfu_install.step);
+
     // // This creates a top level step. Top level steps have a name and can be
     // // invoked by name when running `zig build` (e.g. `zig build run`).
     // // This will evaluate the `run` step rather than the default step.
