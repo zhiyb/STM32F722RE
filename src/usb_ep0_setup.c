@@ -42,7 +42,7 @@ static inline const void *usb_ep0_setup_standard_req(usb_if_t usb_if, setup_t *s
         uint8_t type = setup->wValue >> 8;
         uint8_t index = setup->wValue;
         uint16_t len = 0;
-        const uint8_t *desc = usb_desc_get(usb->ep0.buf, type, index, &len);
+        const uint8_t *desc = usb_desc_get(usb_if, usb->ep0.buf, type, index, &len);
         if (!desc) {
             // Descriptor not applicable, STALL
             return SETUP_STALL;

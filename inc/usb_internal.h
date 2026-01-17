@@ -81,4 +81,4 @@ void usb_ep0_init(usb_if_t usb_if);
 void usb_ep0_setup(usb_if_t usb_if, bool buf_valid);
 void usb_ep0_out(usb_if_t usb_if);
 
-const uint8_t *usb_desc_get(uint8_t *desc_buf, uint8_t type, uint8_t index, uint16_t *len);
+const uint8_t *usb_desc_get(usb_if_t usb_if, uint8_t *desc_buf, uint8_t type, uint8_t index, uint16_t *len);

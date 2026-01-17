@@ -18,7 +18,11 @@ const usb_hw_info_t usb_hw_ifs[NumUsbIfs] = {
         .base = USB_OTG_HS_PERIPH_BASE,
         .ram_size = 1024 * 4,
         .num_ep = 8,
-        .use_dma = true,
+#ifdef BOOTLOADER
+        .use_dma = false,
+#else
+        .use_dma = false,
+#endif
     },
 };
 

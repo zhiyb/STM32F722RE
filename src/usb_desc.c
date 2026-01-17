@@ -41,6 +41,18 @@ typedef struct PACKED {
 typedef struct PACKED {
     uint8_t bLength;
     uint8_t bDescriptorType;
+    uint16_t bcdUSB;
+    uint8_t bDeviceClass;
+    uint8_t bDeviceSubClass;
+    uint8_t bDeviceProtocol;
+    uint8_t bMaxPacketSize0;
+    uint8_t bNumConfigurations;
+    uint8_t bReserved;
+} desc_device_qualifier_t;
+
+typedef struct PACKED {
+    uint8_t bLength;
+    uint8_t bDescriptorType;
     uint16_t wTotalLength;
     uint8_t bNumInterfaces;
     uint8_t bConfigurationValue;
@@ -266,6 +278,24 @@ static const desc_device_t desc_device ALIGNED(4) = {
     .bNumConfigurations = 1,
 };
 
+static const desc_device_qualifier_t desc_device_qualifier ALIGNED(4) = {
+    .bLength = sizeof(desc_device_qualifier_t),
+    .bDescriptorType = DESC_TYPE_DEVICE_QUALIFIER,
+    .bcdUSB = 0x0200,
+#if USB_ALT_IF != USB_ALT_IF_NONE
+    .bDeviceClass = 0xef,       // Miscellaneous Device
+    .bDeviceSubClass = 2,
+    .bDeviceProtocol = 1,       // Interface Association
+#else
+    .bDeviceClass = 0xfe,       // Application Specific
+    .bDeviceSubClass = 0x01,    // Device Firmware Upgrade
+    .bDeviceProtocol = 0x01,    // Runtime
+#endif
+    .bMaxPacketSize0 = 64,
+    .bNumConfigurations = 1,
+    .bReserved = 0,
+};
+
 static const struct PACKED {
     desc_configuration_t configuration;
 
@@ -426,7 +456,7 @@ static const struct PACKED {
 };
 #endif  // BOOTLOADER
 
-const uint8_t *usb_desc_get(uint8_t *desc_buf, uint8_t type, uint8_t index, uint16_t *len)
+const uint8_t *usb_desc_get(usb_if_t usb_if, uint8_t *desc_buf, uint8_t type, uint8_t index, uint16_t *len)
 {
     switch (type) {
     case DESC_TYPE_DEVICE:
@@ -436,8 +466,13 @@ const uint8_t *usb_desc_get(uint8_t *desc_buf, uint8_t type, uint8_t index, uint
         *len = sizeof(desc_configuration);
         return (const uint8_t *)&desc_configuration;
     case DESC_TYPE_DEVICE_QUALIFIER:
-        // Not a high speed device, not supported
-        // TODO
+#ifndef BOOTLOADER
+        if (usb_if == UsbIfHs) {
+            *len = sizeof(desc_device_qualifier_t);
+            return (const uint8_t *)&desc_device_qualifier;
+        }
+#endif
+        // Not a high speed device or not supported
         return 0;
     case DESC_TYPE_STRING:
         return desc_string(desc_buf, index, len);
