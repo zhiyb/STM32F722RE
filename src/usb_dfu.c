@@ -56,8 +56,14 @@ static const void *update_state(setup_t *setup)
 
 void usb_dfu_usb_reset()
 {
-    // TODO Check FW valid
-    usb_dfu.status.bState = UsbDfuState_dfuIDLE;
+    // If host hasn't requested any DFU operations yet, wait
+    if (usb_dfu.status.bState < UsbDfuState_dfuIDLE)
+        return;
+    // Reset USB DFU state?
+    // usb_dfu.status.bState = UsbDfuState_dfuIDLE;
+    // If application firmware is valid, reset to application
+    if (firmware_header->header_size != 0xffffffff)
+        bootloader_run_fw();
 }
 
 static usb_dfu_bStatus_t flash_error(flash_state_t fstate)
@@ -100,6 +106,11 @@ const void *usb_dfu_setup(setup_t *setup, void *data, uint32_t len)
         case REQ_CLASS_DFU_GETSTATE:
             return update_state(setup);
         case REQ_CLASS_DFU_ABORT:
+            return 0;
+        case REQ_CLASS_DFU_DETACH:
+            // Technically not in standard
+            // dfu-util attempts this before resetting to application firmware
+            usb_dfu_usb_reset();
             return 0;
 
         case REQ_CLASS_DFU_DNLOAD:

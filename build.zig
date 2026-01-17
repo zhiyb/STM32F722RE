@@ -155,6 +155,7 @@ pub fn build(b: *std.Build) void {
             "src/log.c",
             "src/systick.c",
             "src/flash.c",
+            "src/bootloader.c",
             "src/usb.c",
             "src/usb_hw.c",
             "src/usb_hw_ep.c",
