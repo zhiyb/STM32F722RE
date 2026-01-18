@@ -1,5 +1,6 @@
 #include "stm32f7xx.h"
 #include "semihosting.h"
+#include "systick.h"
 #include "log.h"
 #include "irq.h"
 #include "usb.h"
@@ -84,11 +85,52 @@ void usb_hw_init(usb_if_t usb_if)
     USB_OTG_GlobalTypeDef *hw_g = HW_G(hw->base);
     USB_OTG_DeviceTypeDef *hw_dev = HW_DEV(hw->base);
 
+    // Select PHY first
+    if (usb_if == UsbIfHs) {
+#ifdef ENABLE_USB_HS_MODE_FS
+        // VBUS detection disabled
+        // Enable USB FS PHY
+        hw_g->GCCFG = USB_OTG_GCCFG_PWRDWN_Msk;
+#endif
+        // Datasheet doesn't say but GUSBCFG does not get reset by CSRST
+        // Force device mode, HNP and SRP not capable
+        hw_g->GUSBCFG = USB_OTG_GUSBCFG_FDMOD_Msk |
+            // USB_OTG_GUSBCFG_HNPCAP_Msk | USB_OTG_GUSBCFG_SRPCAP_Msk |
+#ifdef ENABLE_USB_HS_MODE_FS
+            // USB 1.1 full-speed serial mode
+            USB_OTG_GUSBCFG_PHYSEL_Msk |
+            (6 << USB_OTG_GUSBCFG_TRDT_Pos) | (0 << USB_OTG_GUSBCFG_TOCAL_Pos);
+#endif
+#ifdef ENABLE_USB_HS_MODE_ULPI
+            // External ULPI HS PHY
+            USB_OTG_GUSBCFG_ULPI_UTMI_SEL_Msk |
+            (9 << USB_OTG_GUSBCFG_TRDT_Pos) | (4 << USB_OTG_GUSBCFG_TOCAL_Pos);
+#endif
+#ifdef ENABLE_USB_HS_MODE_FS
+        // Full speed using internal FS PHY
+        hw_dev->DCFG = (0b11ul << USB_OTG_DCFG_DSPD_Pos);
+#endif
+#ifdef ENABLE_USB_HS_MODE_ULPI
+        // Enable transceiver delay, enumerate HS
+        hw_dev->DCFG = (1ul << 14 /* XCVRDLY */);
+#endif
+    } else {
+        // VBUS detection disabled, USB FS PHY enabled
+        hw_g->GCCFG = USB_OTG_GCCFG_PWRDWN_Msk;
+        // Force device mode, TRDT = 6, HNP and SRP not capable
+        hw_g->GUSBCFG = USB_OTG_GUSBCFG_FDMOD_Msk |
+            // USB_OTG_GUSBCFG_HNPCAP_Msk | USB_OTG_GUSBCFG_SRPCAP_Msk |
+            (6 << USB_OTG_GUSBCFG_TRDT_Pos) | (0 << USB_OTG_GUSBCFG_TOCAL_Pos);
+    }
+
     // Wait for AHB bus transactions
     while (!(hw_g->GRSTCTL & USB_OTG_GRSTCTL_AHBIDL_Msk));
     // Core reset
     hw_g->GRSTCTL |= USB_OTG_GRSTCTL_CSRST_Msk;
     while (hw_g->GRSTCTL & USB_OTG_GRSTCTL_CSRST_Msk);
+    uint32_t ms = systick_ms();
+    while (systick_ms() - ms < 2);
+    while (!(hw_g->GRSTCTL & USB_OTG_GRSTCTL_AHBIDL_Msk));
 
     // OTG version 1.3 is obsolete, select version 2.0
     // Override B-session (device) valid
@@ -101,21 +143,6 @@ void usb_hw_init(usb_if_t usb_if)
     // Enable LPM errata behaviour, L1 deep/shallow sleep enable, LPM disable
     hw_g->GLPMCFG = USB_OTG_GLPMCFG_ENBESL_Msk | USB_OTG_GLPMCFG_LPMEN_Msk |
         USB_OTG_GLPMCFG_L1DSEN_Msk | USB_OTG_GLPMCFG_L1SSEN_Msk;
-    if (usb_if == UsbIfHs) {
-        // VBUS detection disabled, USB HS PHY enabled
-        hw_g->GCCFG = 0;
-        // Force device mode, TRDT = 9, HNP and SRP not capable, external ULPI HS PHY
-        hw_g->GUSBCFG = USB_OTG_GUSBCFG_FDMOD_Msk | USB_OTG_GUSBCFG_ULPI_UTMI_SEL_Msk |
-            // USB_OTG_GUSBCFG_HNPCAP_Msk | USB_OTG_GUSBCFG_SRPCAP_Msk |
-            (9 << USB_OTG_GUSBCFG_TRDT_Pos) | (4 << USB_OTG_GUSBCFG_TOCAL_Pos);
-    } else {
-        // VBUS detection disabled, USB FS PHY enabled
-        hw_g->GCCFG = USB_OTG_GCCFG_PWRDWN_Msk;
-        // Force device mode, TRDT = 6, HNP and SRP not capable
-        hw_g->GUSBCFG = USB_OTG_GUSBCFG_FDMOD_Msk |
-            // USB_OTG_GUSBCFG_HNPCAP_Msk | USB_OTG_GUSBCFG_SRPCAP_Msk |
-            (6 << USB_OTG_GUSBCFG_TRDT_Pos) | (0 << USB_OTG_GUSBCFG_TOCAL_Pos);
-    }
 
     // Initialise in disconnected state
     usb_hw_connect(usb_if, false);
@@ -123,10 +150,17 @@ void usb_hw_init(usb_if_t usb_if)
     // Initialise USB in device mode
     if (usb_if == UsbIfHs) {
         if (hw->use_dma) {
-            // Allocate 25% for iso IN DMA, enable transceiver delay, enumerate HS,
-            // reject non-zero-length status OUT packets
+            // Allocate 25% for iso IN DMA, reject non-zero-length status OUT packets
             hw_dev->DCFG = (0b00ul << USB_OTG_DCFG_PERSCHIVL_Pos) |
-                (1ul << 14 /* XCVRDLY */) | USB_OTG_DCFG_NZLSOHSK_Msk;
+#ifdef ENABLE_USB_HS_MODE_FS
+                // Full speed using internal FS PHY
+                (0b11ul << USB_OTG_DCFG_DSPD_Pos) |
+#endif
+#ifdef ENABLE_USB_HS_MODE_ULPI
+                // Enable transceiver delay, enumerate HS
+                (1ul << 14 /* XCVRDLY */) |
+#endif
+                USB_OTG_DCFG_NZLSOHSK_Msk;
 #if 1
             // Data transfer threshold 8x4 bytes
             hw_dev->DTHRCTL = (8u << USB_OTG_DTHRCTL_RXTHRLEN_Pos) |
@@ -345,15 +379,19 @@ static void usb_hw_irq(usb_if_t usb_if)
     }
 }
 
+#ifdef ENABLE_USB_FS
 void OTG_FS_IRQHandler()
 {
     usb_hw_irq(UsbIfFs);
 }
+#endif
 
+#ifdef ENABLE_USB_HS
 void OTG_HS_IRQHandler()
 {
     usb_hw_irq(UsbIfHs);
 }
+#endif
 
 void usb_hw_process(usb_if_t usb_if)
 {

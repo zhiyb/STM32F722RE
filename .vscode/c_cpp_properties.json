@@ -14,7 +14,15 @@
             "intelliSenseMode": "linux-clang-x64",
             "defines": [
                 "STM32F722xx",
-                // "BOOTLOADER",
+
+                "BOOTLOADER",
+                "BOOTLOADER_USB",
+
+                "ENABLE_USB_FS",
+                "ENABLE_USB_HS",
+                // "ENABLE_USB_HS_MODE_FS",
+                "ENABLE_USB_HS_MODE_ULPI",
+
                 "ENABLE_DEBUGGING",
                 "ENABLE_LOGGING",
             ]

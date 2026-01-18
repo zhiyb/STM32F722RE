@@ -48,10 +48,12 @@ static void rcc_init()
     // Set dedicated clocks: CLK48 from PLL
     RCC->DCKCFGR2 = 0;
     while ((RCC->CFGR & RCC_CFGR_SWS_Msk) != RCC_CFGR_SWS_PLL);
+#ifdef ENABLE_USB_HS_MODE_ULPI
     // Enable clock output for USB3370 PHY
     // MCO1: HSE / 1
     RCC->CFGR = (RCC->CFGR & ~(RCC_CFGR_MCO1 | RCC_CFGR_MCO1PRE)) |
         (0b10 << RCC_CFGR_MCO1_Pos) | (0 << RCC_CFGR_MCO1PRE_Pos);
+#endif
 }
 
 static void board_init()
@@ -81,83 +83,180 @@ static void board_init()
     systick_init();
 
     // Enable peripherals
-    RCC->AHB1ENR = RCC_AHB1ENR_OTGHSULPIEN_Msk | RCC_AHB1ENR_OTGHSEN_Msk | RCC_AHB1ENR_DTCMRAMEN_Msk |
+    RCC->AHB1ENR =
+#ifdef ENABLE_USB_HS_MODE_ULPI
+        RCC_AHB1ENR_OTGHSULPIEN_Msk |
+#endif
+#ifdef ENABLE_USB_HS
+        RCC_AHB1ENR_OTGHSEN_Msk |
+#endif
+        RCC_AHB1ENR_DTCMRAMEN_Msk |
         RCC_AHB1ENR_GPIOAEN_Msk | RCC_AHB1ENR_GPIOBEN_Msk | RCC_AHB1ENR_GPIOCEN_Msk;
     RCC->AHB2ENR = RCC_AHB2ENR_OTGFSEN_Msk;
     RCC->APB2ENR = RCC_APB2ENR_SYSCFGEN_Msk;
 
     // Configure GPIOs
+#ifdef ENABLE_USB_HS_MODE_ULPI
     // PA3  | USB_OTG_HS_ULPI_D0  | AF10 | HS 60M
     // PA5  | USB_OTG_HS_ULPI_CK  | AF10 | HS 60M
     // PA8  | RCC_MCO_1           | AF0  | MS 19.2M
+#endif
+#ifdef ENABLE_USB_FS
     // PA11 | USB_OTG_FS_DM       | AF10 | MS 12M
     // PA12 | USB_OTG_FS_DP       | AF10 | MS 12M
+#endif
     // PA13 | SYS_JTMS-SWDIO      | AF0  | HS ?
     // PA14 | SYS_JTCK-SWCLK      | AF0  | HS ?
+#ifdef ENABLE_USB_HS_MODE_ULPI
     // PB0  | USB_OTG_HS_ULPI_D1  | AF10 | HS 60M
     // PB1  | USB_OTG_HS_ULPI_D2  | AF10 | HS 60M
     // PB5  | USB_OTG_HS_ULPI_D7  | AF10 | HS 60M
-    // PB6  | I2C1_SCL            | AF4  | LS 400k
-    // PB7  | I2C1_SDA            | AF4  | LS 400k
+#endif
+#ifdef ENABLE_USB_HS_MODE_ULPI
     // PB10 | USB_OTG_HS_ULPI_D3  | AF10 | HS 60M
     // PB11 | USB_OTG_HS_ULPI_D4  | AF10 | HS 60M
     // PB12 | USB_OTG_HS_ULPI_D5  | AF10 | HS 60M
     // PB13 | USB_OTG_HS_ULPI_D6  | AF10 | HS 60M
+#endif
+#ifdef ENABLE_USB_HS_MODE_FS
+    // PB14 | USB_OTG_HS_DM       | AF12 | MS 12M
+    // PB15 | USB_OTG_HS_DP       | AF12 | MS 12M
+#endif
+#ifdef ENABLE_USB_HS_MODE_ULPI
     // PC0  | USB_OTG_HS_ULPI_STP | AF10 | HS 60M
     // PC2  | USB_OTG_HS_ULPI_DIR | AF10 | HS 60M
     // PC3  | USB_OTG_HS_ULPI_NXT | AF10 | HS 60M
+#endif
     // PH0  | RCC_OSC_IN          | AF10 | 19.2M
     // PH1  | RCC_OSC_OUT         | AF10 | 19.2M
 
+#ifdef ENABLE_USB_HS_MODE_ULPI
     // Enable IO compensation cell
     SYSCFG->CMPCR = SYSCFG_CMPCR_CMP_PD_Msk;
+#endif
     // For unusued pins, disable input Schmitt trigger for power saving
     // 10: Alternative function mode
     // 11: Analog mode
     GPIOA->MODER =
-        (0b11ul << GPIO_MODER_MODER0_Pos)  | (0b11ul << GPIO_MODER_MODER1_Pos)  |
-        (0b11ul << GPIO_MODER_MODER2_Pos)  | (0b10ul << GPIO_MODER_MODER3_Pos)  |
-        (0b11ul << GPIO_MODER_MODER4_Pos)  | (0b10ul << GPIO_MODER_MODER5_Pos)  |
-        (0b11ul << GPIO_MODER_MODER6_Pos)  | (0b11ul << GPIO_MODER_MODER7_Pos)  |
-        (0b10ul << GPIO_MODER_MODER8_Pos)  | (0b11ul << GPIO_MODER_MODER9_Pos)  |
-        (0b11ul << GPIO_MODER_MODER10_Pos) | (0b10ul << GPIO_MODER_MODER11_Pos) |
-        (0b10ul << GPIO_MODER_MODER12_Pos) | (0b10ul << GPIO_MODER_MODER13_Pos) |
-        (0b10ul << GPIO_MODER_MODER14_Pos) | (0b11ul << GPIO_MODER_MODER15_Pos);
+#ifdef ENABLE_USB_FS
+        (0b10ul << GPIO_MODER_MODER11_Pos) |
+        (0b10ul << GPIO_MODER_MODER12_Pos) |
+#else
+        (0b11ul << GPIO_MODER_MODER11_Pos) |
+        (0b11ul << GPIO_MODER_MODER12_Pos) |
+#endif
+#ifdef ENABLE_USB_HS_MODE_ULPI
+        (0b10ul << GPIO_MODER_MODER3_Pos)  |
+        (0b10ul << GPIO_MODER_MODER5_Pos)  |
+        (0b10ul << GPIO_MODER_MODER8_Pos)  |
+#else
+        (0b11ul << GPIO_MODER_MODER3_Pos)  |
+        (0b11ul << GPIO_MODER_MODER5_Pos)  |
+        (0b11ul << GPIO_MODER_MODER8_Pos)  |
+#endif
+        (0b11ul << GPIO_MODER_MODER0_Pos)  |
+        (0b11ul << GPIO_MODER_MODER1_Pos)  |
+        (0b11ul << GPIO_MODER_MODER2_Pos)  |
+        (0b11ul << GPIO_MODER_MODER4_Pos)  |
+        (0b11ul << GPIO_MODER_MODER6_Pos)  |
+        (0b11ul << GPIO_MODER_MODER7_Pos)  |
+        (0b11ul << GPIO_MODER_MODER9_Pos)  |
+        (0b11ul << GPIO_MODER_MODER10_Pos) |
+        (0b10ul << GPIO_MODER_MODER13_Pos) |
+        (0b10ul << GPIO_MODER_MODER14_Pos) |
+        (0b11ul << GPIO_MODER_MODER15_Pos);
     GPIOB->MODER =
-        (0b10ul << GPIO_MODER_MODER0_Pos)  | (0b10ul << GPIO_MODER_MODER1_Pos)  |
-        (0b11ul << GPIO_MODER_MODER2_Pos)  | (0b11ul << GPIO_MODER_MODER3_Pos)  |
-        (0b11ul << GPIO_MODER_MODER4_Pos)  | (0b10ul << GPIO_MODER_MODER5_Pos)  |
-        (0b10ul << GPIO_MODER_MODER6_Pos)  | (0b10ul << GPIO_MODER_MODER7_Pos)  |
-        (0b11ul << GPIO_MODER_MODER8_Pos)  | (0b11ul << GPIO_MODER_MODER9_Pos)  |
-        (0b10ul << GPIO_MODER_MODER10_Pos) | (0b10ul << GPIO_MODER_MODER11_Pos) |
-        (0b10ul << GPIO_MODER_MODER12_Pos) | (0b10ul << GPIO_MODER_MODER13_Pos) |
-        (0b11ul << GPIO_MODER_MODER14_Pos) | (0b11ul << GPIO_MODER_MODER15_Pos);
+#ifdef ENABLE_USB_HS_MODE_FS
+        (0b10ul << GPIO_MODER_MODER14_Pos) |
+        (0b10ul << GPIO_MODER_MODER15_Pos) |
+#else
+        (0b11ul << GPIO_MODER_MODER14_Pos) |
+        (0b11ul << GPIO_MODER_MODER15_Pos) |
+#endif
+#ifdef ENABLE_USB_HS_MODE_ULPI
+        (0b10ul << GPIO_MODER_MODER0_Pos)  |
+        (0b10ul << GPIO_MODER_MODER1_Pos)  |
+        (0b10ul << GPIO_MODER_MODER5_Pos)  |
+        (0b10ul << GPIO_MODER_MODER10_Pos) |
+        (0b10ul << GPIO_MODER_MODER11_Pos) |
+        (0b10ul << GPIO_MODER_MODER12_Pos) |
+        (0b10ul << GPIO_MODER_MODER13_Pos) |
+#else
+        (0b11ul << GPIO_MODER_MODER0_Pos)  |
+        (0b11ul << GPIO_MODER_MODER1_Pos)  |
+        (0b11ul << GPIO_MODER_MODER5_Pos)  |
+        (0b11ul << GPIO_MODER_MODER10_Pos) |
+        (0b11ul << GPIO_MODER_MODER11_Pos) |
+        (0b11ul << GPIO_MODER_MODER12_Pos) |
+        (0b11ul << GPIO_MODER_MODER13_Pos) |
+#endif
+        (0b11ul << GPIO_MODER_MODER2_Pos)  |
+        (0b11ul << GPIO_MODER_MODER3_Pos)  |
+        (0b11ul << GPIO_MODER_MODER4_Pos)  |
+        (0b11ul << GPIO_MODER_MODER6_Pos)  |
+        (0b11ul << GPIO_MODER_MODER7_Pos)  |
+        (0b11ul << GPIO_MODER_MODER8_Pos)  |
+        (0b11ul << GPIO_MODER_MODER9_Pos);
     GPIOC->MODER =
-        (0b10ul << GPIO_MODER_MODER0_Pos)  | (0b11ul << GPIO_MODER_MODER1_Pos)  |
-        (0b10ul << GPIO_MODER_MODER2_Pos)  | (0b10ul << GPIO_MODER_MODER3_Pos)  |
-        (0b11ul << GPIO_MODER_MODER4_Pos)  | (0b11ul << GPIO_MODER_MODER5_Pos)  |
-        (0b11ul << GPIO_MODER_MODER6_Pos)  | (0b11ul << GPIO_MODER_MODER7_Pos)  |
-        (0b11ul << GPIO_MODER_MODER8_Pos)  | (0b11ul << GPIO_MODER_MODER9_Pos)  |
-        (0b11ul << GPIO_MODER_MODER10_Pos) | (0b11ul << GPIO_MODER_MODER11_Pos) |
-        (0b11ul << GPIO_MODER_MODER12_Pos) | (0b11ul << GPIO_MODER_MODER13_Pos) |
-        (0b11ul << GPIO_MODER_MODER14_Pos) | (0b11ul << GPIO_MODER_MODER15_Pos);
+#ifdef ENABLE_USB_HS_MODE_ULPI
+        (0b10ul << GPIO_MODER_MODER0_Pos)  |
+        (0b10ul << GPIO_MODER_MODER2_Pos)  |
+        (0b10ul << GPIO_MODER_MODER3_Pos)  |
+#else
+        (0b11ul << GPIO_MODER_MODER0_Pos)  |
+        (0b11ul << GPIO_MODER_MODER2_Pos)  |
+        (0b11ul << GPIO_MODER_MODER3_Pos)  |
+#endif
+        (0b11ul << GPIO_MODER_MODER1_Pos)  |
+        (0b11ul << GPIO_MODER_MODER4_Pos)  |
+        (0b11ul << GPIO_MODER_MODER5_Pos)  |
+        (0b11ul << GPIO_MODER_MODER6_Pos)  |
+        (0b11ul << GPIO_MODER_MODER7_Pos)  |
+        (0b11ul << GPIO_MODER_MODER8_Pos)  |
+        (0b11ul << GPIO_MODER_MODER9_Pos)  |
+        (0b11ul << GPIO_MODER_MODER10_Pos) |
+        (0b11ul << GPIO_MODER_MODER11_Pos) |
+        (0b11ul << GPIO_MODER_MODER12_Pos) |
+        (0b11ul << GPIO_MODER_MODER13_Pos) |
+        (0b11ul << GPIO_MODER_MODER14_Pos) |
+        (0b11ul << GPIO_MODER_MODER15_Pos);
     GPIOA->OTYPER = 0;
-    GPIOB->OTYPER = GPIO_OTYPER_OT6_Msk | GPIO_OTYPER_OT7_Msk;
+    GPIOB->OTYPER = 0;
     GPIOC->OTYPER = 0;
     GPIOA->OSPEEDR =
-        (0b10ul << GPIO_OSPEEDR_OSPEEDR3_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR5_Pos) |
-        (0b01ul << GPIO_OSPEEDR_OSPEEDR8_Pos) | (0b01ul << GPIO_OSPEEDR_OSPEEDR11_Pos) |
+#ifdef ENABLE_USB_FS
+        (0b01ul << GPIO_OSPEEDR_OSPEEDR11_Pos) |
         (0b01ul << GPIO_OSPEEDR_OSPEEDR12_Pos) |
-        (0b10ul << GPIO_OSPEEDR_OSPEEDR13_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR14_Pos);
-    GPIOB->OSPEEDR =
-        (0b10ul << GPIO_OSPEEDR_OSPEEDR0_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR1_Pos) |
+#endif
+#ifdef ENABLE_USB_HS_MODE_ULPI
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR3_Pos) |
         (0b10ul << GPIO_OSPEEDR_OSPEEDR5_Pos) |
-        (0b00ul << GPIO_OSPEEDR_OSPEEDR6_Pos) | (0b00ul << GPIO_OSPEEDR_OSPEEDR7_Pos) |
-        (0b10ul << GPIO_OSPEEDR_OSPEEDR10_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR11_Pos) |
-        (0b10ul << GPIO_OSPEEDR_OSPEEDR12_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR13_Pos);
+        (0b01ul << GPIO_OSPEEDR_OSPEEDR8_Pos) |
+#endif
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR13_Pos) |
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR14_Pos);
+    GPIOB->OSPEEDR =
+#ifdef ENABLE_USB_HS_MODE_FS
+        (0b01ul << GPIO_OSPEEDR_OSPEEDR14_Pos) |
+        (0b01ul << GPIO_OSPEEDR_OSPEEDR15_Pos) |
+#endif
+#ifdef ENABLE_USB_HS_MODE_ULPI
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR0_Pos) |
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR1_Pos) |
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR5_Pos) |
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR10_Pos) |
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR11_Pos) |
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR12_Pos) |
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR13_Pos) |
+#endif
+        0;
     GPIOC->OSPEEDR =
-        (0b10ul << GPIO_OSPEEDR_OSPEEDR0_Pos) | (0b10ul << GPIO_OSPEEDR_OSPEEDR2_Pos) |
-        (0b10ul << GPIO_OSPEEDR_OSPEEDR3_Pos);
+#ifdef ENABLE_USB_HS_MODE_ULPI
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR0_Pos) |
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR2_Pos) |
+        (0b10ul << GPIO_OSPEEDR_OSPEEDR3_Pos) |
+#endif
+        0;
     GPIOA->PUPDR = (0b01ul << GPIO_PUPDR_PUPDR13_Pos) | (0b10ul << GPIO_PUPDR_PUPDR14_Pos);
     GPIOB->PUPDR = 0;
     GPIOC->PUPDR = 0;
@@ -177,20 +276,26 @@ static void board_init()
         (0ul << GPIO_AFRH_AFRH13_Pos) | (0ul << GPIO_AFRH_AFRH14_Pos);
     GPIOB->AFR[0] =
         (10ul << GPIO_AFRL_AFRL0_Pos) | (10ul << GPIO_AFRL_AFRL1_Pos) |
-        (10ul << GPIO_AFRL_AFRL5_Pos) |
-        (4ul << GPIO_AFRL_AFRL6_Pos) | (4ul << GPIO_AFRL_AFRL7_Pos);
+        (10ul << GPIO_AFRL_AFRL5_Pos);
     GPIOB->AFR[1] =
         (10ul << GPIO_AFRH_AFRH10_Pos) | (10ul << GPIO_AFRH_AFRH11_Pos) |
-        (10ul << GPIO_AFRH_AFRH12_Pos) | (10ul << GPIO_AFRH_AFRH13_Pos);
+        (10ul << GPIO_AFRH_AFRH12_Pos) | (10ul << GPIO_AFRH_AFRH13_Pos) |
+        (12ul << GPIO_AFRH_AFRH14_Pos) | (12ul << GPIO_AFRH_AFRH15_Pos);
     GPIOC->AFR[0] =
         (10ul << GPIO_AFRL_AFRL0_Pos) | (10ul << GPIO_AFRL_AFRL2_Pos) |
         (10ul << GPIO_AFRL_AFRL3_Pos);
     GPIOC->AFR[1] = 0;
+#ifdef ENABLE_USB_HS_MODE_ULPI
     // Wait for IO compensation cell
     while (!(SYSCFG->CMPCR & SYSCFG_CMPCR_READY_Msk));
+#endif
 
+#ifdef ENABLE_USB_FS
     usb_init(UsbIfFs);
+#endif
+#ifdef ENABLE_USB_HS
     usb_init(UsbIfHs);
+#endif
 }
 
 void main()
@@ -198,12 +303,20 @@ void main()
     board_init();
     usb_cmsis_dap_init();
 
+#ifdef ENABLE_USB_FS
     usb_connect(UsbIfFs, true);
+#endif
+#ifdef ENABLE_USB_HS
     usb_connect(UsbIfHs, true);
+#endif
 
     for (;;) {
+#ifdef ENABLE_USB_FS
         usb_process(UsbIfFs);
+#endif
+#ifdef ENABLE_USB_HS
         usb_process(UsbIfHs);
+#endif
 
         // usb_hid_process(now_ms);
         // if (uart_rx_available() && usb_cdc_tx_free())

@@ -40,6 +40,12 @@ pub fn build(b: *std.Build) void {
 
     const target_c_sources = .{"src/startup_stm32f722xx.s"};
     const target_flags = .{"-DSTM32F722xx"};
+    const usb_flags = .{
+        "-DENABLE_USB_FS",
+        "-DENABLE_USB_HS",
+        // "-DENABLE_USB_HS_MODE_FS",
+        "-DENABLE_USB_HS_MODE_ULPI",
+    };
 
     // Standard optimization options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
@@ -138,7 +144,7 @@ pub fn build(b: *std.Build) void {
             "cmsis-dap/src/JTAG_DP.c",
             "cmsis-dap/src/SW_DP.c",
         }),
-        .flags = &(target_flags ++ .{
+        .flags = &(target_flags ++ usb_flags ++ .{
             "-DENABLE_DEBUGGING",
             "-DENABLE_LOGGING",
         }),
@@ -172,7 +178,7 @@ pub fn build(b: *std.Build) void {
             "src/usb_desc.c",
             "src/usb_dfu.c",
         }),
-        .flags = &(target_flags ++ .{
+        .flags = &(target_flags ++ usb_flags ++ .{
             "-DBOOTLOADER",
             "-DBOOTLOADER_USB",
             // "-DENABLE_DEBUGGING",
