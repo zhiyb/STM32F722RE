@@ -141,8 +141,8 @@ bool usb_hw_ep_out_continue(usb_if_t usb_if, uint32_t ep, uint32_t setup, uint32
     const usb_hw_info_t *hw = &usb_hw_ifs[usb_if];
     USB_OTG_OUTEndpointTypeDef *hw_ep_out = HW_EP_OUT(hw->base, ep);
     // Endpoint 0 does not seem to clear EPENA after OUT transfer completion?
-    if (ep != 0 && (hw_ep_out->DOEPCTL & USB_OTG_DOEPCTL_EPENA_Msk))
-        DBG_BKPT("EP not idle");
+    // if (ep != 0 && (hw_ep_out->DOEPCTL & USB_OTG_DOEPCTL_EPENA_Msk))
+    //     DBG_BKPT("EP not idle");
 
     usb_t *usb = &usb_ifs[usb_if];
     if (!setup && !usb->ep.out[ep].pkts)

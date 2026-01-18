@@ -42,9 +42,9 @@ static void usb_hw_reset(usb_if_t usb_if)
     hw_dev->DCFG &= ~USB_OTG_DCFG_DAD_Msk;
 
     // Disable endpoints
-    while (hw_g->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk);
-    hw_dev->DCTL |= USB_OTG_DCTL_SGONAK_Msk;
-    while (!(hw_g->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk));
+    // while (hw_g->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk);
+    // hw_dev->DCTL |= USB_OTG_DCTL_SGONAK_Msk;
+    // while (!(hw_g->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk));
 
     usb_t *usb = &usb_ifs[usb_if];
     for (uint32_t ep = 0; ep < UsbNumInEndpoints; ep++) {
@@ -74,8 +74,8 @@ static void usb_hw_reset(usb_if_t usb_if)
     usb->ev.wptr = 0;
     usb->ev.data[0].ev = UsbEvNone;
 
-    hw_dev->DCTL |= USB_OTG_DCTL_CGONAK_Msk;
-    while (hw_g->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk);
+    // hw_dev->DCTL |= USB_OTG_DCTL_CGONAK_Msk;
+    // while (hw_g->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk);
 }
 
 void usb_hw_init(usb_if_t usb_if)
