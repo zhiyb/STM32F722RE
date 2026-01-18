@@ -6,6 +6,7 @@
 #include "irq.h"
 #include "usb.h"
 #include "usb_dfu.h"
+#include "usb_cmsis_dap.h"
 
 static void rcc_init()
 {
@@ -55,10 +56,21 @@ static void rcc_init()
 
 static void board_init()
 {
-    SCB_EnableICache();
-    SCB_EnableDCache();
     rcc_init();
     panic_init();
+
+    // Initialise MPU and cache
+    static const ARM_MPU_Region_t mpu_regions[] = {
+        {
+            // Disable exec, read cache and write cache on DMA RAM
+            .RBAR = ARM_MPU_RBAR(0, SRAM2_BASE),
+            .RASR = ARM_MPU_RASR(1, ARM_MPU_AP_PRIV, 0b000, 0, 0, 0, 0x00, ARM_MPU_REGION_SIZE_16KB)
+        },
+    };
+    ARM_MPU_Load(mpu_regions, ARRAY_SIZE(mpu_regions));
+    ARM_MPU_Enable(MPU_CTRL_PRIVDEFENA_Msk);		// Fallback to default mapping
+    SCB_EnableICache();
+    SCB_EnableDCache();
 
     // Configure interrupt vector table location
     SCB->VTOR = (uint32_t)irq_vectors;
@@ -184,9 +196,7 @@ static void board_init()
 void main()
 {
     board_init();
-
-    // dbg_puts("firmware\r\n");
-    // dbg_bkpt();
+    usb_cmsis_dap_init();
 
     usb_connect(UsbIfFs, true);
     usb_connect(UsbIfHs, true);

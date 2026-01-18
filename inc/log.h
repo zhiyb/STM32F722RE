@@ -30,6 +30,8 @@ typedef enum {
     LogUsbDfu_Manifest,
 
     LogFlash_INT,
+
+    LogCmsisDap_Out,
 } log_type_t;
 
 #ifdef ENABLE_LOGGING

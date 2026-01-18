@@ -6,8 +6,9 @@
 #include "usb_hw.h"
 #include "usb_internal.h"
 #include "usb_dfu.h"
+#include "usb_cmsis_dap.h"
 
-const usb_hw_info_t usb_hw_ifs[NumUsbIfs] = {
+const usb_hw_info_t usb_hw_ifs[UsbNumIfs] = {
     [UsbIfFs] = {
         .base = USB_OTG_FS_PERIPH_BASE,
         .ram_size = 1280,
@@ -38,21 +39,26 @@ static void usb_hw_reset(usb_if_t usb_if)
     hw_dev->DCFG &= ~USB_OTG_DCFG_DAD_Msk;
 
     // Disable endpoints
+    while (hw_g->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk);
+    hw_dev->DCTL |= USB_OTG_DCTL_SGONAK_Msk;
+    while (!(hw_g->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk));
+
     usb_t *usb = &usb_ifs[usb_if];
-    for (uint32_t ep = 0; ep < UsbNumEndpoints; ep++) {
-        usb->ep[ep].in.pkts = 0;
+    for (uint32_t ep = 0; ep < UsbNumInEndpoints; ep++) {
+        usb->ep.in[ep].pkts = 0;
         USB_OTG_INEndpointTypeDef *hw_ep_in = HW_EP_IN(hw->base, ep);
         uint32_t ctl = hw_ep_in->DIEPCTL;
         if (ctl & USB_OTG_DIEPCTL_EPENA_Msk)
             hw_ep_in->DIEPCTL = (ctl & (USB_OTG_DIEPCTL_TXFNUM_Msk | USB_OTG_DIEPCTL_MPSIZ_Msk |
-                USB_OTG_DIEPCTL_EPTYP_Msk)) | USB_OTG_DIEPCTL_EPDIS_Msk;
-
-        usb->ep[ep].out.pkts = 0;
+                USB_OTG_DIEPCTL_EPTYP_Msk)) | USB_OTG_DIEPCTL_EPDIS_Msk | USB_OTG_DIEPCTL_SNAK_Msk;
+    }
+    for (uint32_t ep = 0; ep < UsbNumOutEndpoints; ep++) {
+        usb->ep.out[ep].pkts = 0;
         USB_OTG_OUTEndpointTypeDef *hw_ep_out = HW_EP_OUT(hw->base, ep);
-        ctl = hw_ep_out->DOEPCTL;
+        uint32_t ctl = hw_ep_out->DOEPCTL;
         if (ctl & USB_OTG_DOEPCTL_EPENA_Msk)
             hw_ep_out->DOEPCTL = (ctl & (USB_OTG_DOEPCTL_MPSIZ_Msk | USB_OTG_DOEPCTL_EPTYP_Msk)) |
-                USB_OTG_DOEPCTL_EPDIS_Msk;
+                USB_OTG_DOEPCTL_EPDIS_Msk | USB_OTG_DOEPCTL_SNAK_Msk;
     }
 
     // Flush FIFOs
@@ -64,6 +70,9 @@ static void usb_hw_reset(usb_if_t usb_if)
     usb->ev.rptr = 0;
     usb->ev.wptr = 0;
     usb->ev.data[0].ev = UsbEvNone;
+
+    hw_dev->DCTL |= USB_OTG_DCTL_CGONAK_Msk;
+    while (hw_g->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk);
 }
 
 void usb_hw_init(usb_if_t usb_if)
@@ -144,7 +153,7 @@ void usb_hw_init(usb_if_t usb_if)
         hw_g->GAHBCFG = 0;
     }
 
-    usb_hw_reset(usb_if);
+    // usb_hw_reset(usb_if);
 
     // Without DMA, we need to manually read the RX FIFO
     uint32_t gint = hw->use_dma ? 0 : USB_OTG_GINTSTS_RXFLVL_Msk;
@@ -255,16 +264,16 @@ static void usb_hw_irq(usb_if_t usb_if)
         log_push(LogUSB_INT_Rx, grxstsp);
         uint32_t ep = (grxstsp & USB_OTG_GRXSTSP_EPNUM_Msk) >> USB_OTG_GRXSTSP_EPNUM_Pos;
         uint16_t cnt = (grxstsp & USB_OTG_GRXSTSP_BCNT_Msk) >> USB_OTG_GRXSTSP_BCNT_Pos;
-        uint32_t *p = (uint32_t *)((uint32_t)usb->ep[ep].out.p + usb->ep[ep].out.offset);
+        uint32_t *p = (uint32_t *)((uint32_t)usb->ep.out[ep].p + usb->ep.out[ep].offset);
         uint32_t pktsts = (grxstsp & USB_OTG_GRXSTSP_PKTSTS_Msk) >> USB_OTG_GRXSTSP_PKTSTS_Pos;
         if (pktsts == 0b0010) {
             // Only advance pointer for OUT packet, skipped for SETUP packets
             // Ignore early SETUP packets in case of error
-            usb->ep[ep].out.last_len = cnt;
-            usb->ep[ep].out.offset += cnt;
+            usb->ep.out[ep].last_len = cnt;
+            usb->ep.out[ep].offset += cnt;
         } else if (pktsts == 0b0110) {
             // SETUP packet received
-            usb->ep[ep].out.last_len = 0;
+            usb->ep.out[ep].last_len = 0;
         }
         cnt = (cnt + 3) / 4;
         while (cnt--)
@@ -288,7 +297,12 @@ static void usb_hw_irq(usb_if_t usb_if)
                 handled = true;
                 hw_ep_out->DOEPINT = USB_OTG_DOEPINT_XFRC_Msk;
                 bool complete = true;
-                if (usb->ep[ep].out.last_len == usb->ep[ep].out.max_size) {
+                if (usb_hw_ifs[usb_if].use_dma) {
+                    usb->ep.out[ep].last_len = usb->ep.out[ep].last_len -
+                        (hw_ep_out->DOEPTSIZ & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DOEPTSIZ_XFRSIZ_Pos;
+                    usb->ep.out[ep].offset += usb->ep.out[ep].last_len;
+                }
+                if (usb->ep.out[ep].last_len == usb->ep.out[ep].max_size) {
                     // More data may be available
                     complete = !usb_hw_ep_out_continue(usb_if, ep, 0, 1);
                 }
@@ -309,7 +323,7 @@ static void usb_hw_irq(usb_if_t usb_if)
             if (ep_int & USB_OTG_DIEPINT_XFRC_Msk) {
                 handled = true;
                 hw_ep_in->DIEPINT = USB_OTG_DIEPINT_XFRC_Msk;
-                if (usb->ep[ep].in.pkts)
+                if (usb->ep.in[ep].pkts)
                     usb_hw_ep_in_continue(usb_if, ep);
                 else
                     usb_hw_push_event(usb, ep, UsbEvIn);
@@ -317,7 +331,7 @@ static void usb_hw_irq(usb_if_t usb_if)
             if (ep_int & USB_OTG_DIEPINT_TOC_Msk) {
                 handled = true;
                 hw_ep_in->DIEPINT = USB_OTG_DIEPINT_TOC_Msk;
-                usb->ep[ep].in.pkts = 0;
+                usb->ep.in[ep].pkts = 0;
             }
         }
     }
@@ -364,9 +378,33 @@ void usb_hw_process(usb_if_t usb_if)
         usb_ep0_setup(usb_if, false);
         break;
     case UsbEvOut:
-        usb_ep0_out(usb_if);
+        switch (ev.ep) {
+        case UsbEpOut0Ctrl:
+            usb_ep0_out(usb_if);
+            break;
+#if USB_INTERFACE_CMSIS_DAP
+        case UsbEpOutCmsisDap:
+            usb_cmsis_dap_ep_out(usb_if);
+            break;
+#endif
+        default:
+            TODO();
+            break;
+        }
         break;
     case UsbEvIn:
+        switch (ev.ep) {
+        case UsbEpIn0Ctrl:
+            break;
+#if USB_INTERFACE_CMSIS_DAP
+        case UsbEpInCmsisDap:
+            usb_cmsis_dap_ep_in(usb_if);
+            break;
+#endif
+        default:
+            TODO();
+            break;
+        }
         break;
 
     default:

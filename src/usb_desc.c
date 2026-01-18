@@ -3,8 +3,8 @@
 #include "macros.h"
 #include "usb.h"
 #include "usb_dfu.h"
-#include "usb_desc_hid.h"
-#include "usb_desc_cdc.h"
+// #include "usb_desc_hid.h"
+// #include "usb_desc_cdc.h"
 
 typedef enum {
     DESC_TYPE_DEVICE                    = 1,
@@ -126,9 +126,18 @@ typedef enum {
     String_iManufacturer,
     String_iProduct,
     String_iSerialNumber,
+#if USB_INTERFACE_CDC
     String_CDC,
+#endif
+#if USB_INTERFACE_CMSIS_DAP
+    String_CMSIS_DAP,
+#endif
+#if USB_INTERFACE_DFU_RT
     String_DFU_RT,
+#endif
+#if USB_INTERFACE_DFU_MODE
     String_DFU_Mode,
+#endif
     NumStrings,
 } desc_string_index_t;
 
@@ -153,7 +162,11 @@ static const uint8_t *desc_string(uint8_t *desc_buf, uint8_t index, uint16_t *le
         break;
     }
     case String_iProduct: {
+#if USB_INTERFACE_CMSIS_DAP
+        static const uint8_t str[] = "STM32F722RE CMSIS-DAP";
+#else
         static const uint8_t str[] = "STM32F722RE";
+#endif
         desc_string_copy(desc, str, sizeof(str) - 1);
         break;
     }
@@ -168,21 +181,34 @@ static const uint8_t *desc_string(uint8_t *desc_buf, uint8_t index, uint16_t *le
         desc_string_copy(desc, str, sizeof(str) - 1);
         break;
     }
+#if USB_INTERFACE_CDC
     case String_CDC: {
         static const uint8_t str[] = "(String_CDC)";
         desc_string_copy(desc, str, sizeof(str) - 1);
         break;
     }
+#endif
+#if USB_INTERFACE_CMSIS_DAP
+    case String_CMSIS_DAP: {
+        static const uint8_t str[] = "CMSIS-DAP interface";
+        desc_string_copy(desc, str, sizeof(str) - 1);
+        break;
+    }
+#endif
+#if USB_INTERFACE_DFU_RT
     case String_DFU_RT: {
         static const uint8_t str[] = "(String_DFU_RT)";
         desc_string_copy(desc, str, sizeof(str) - 1);
         break;
     }
+#endif
+#if USB_INTERFACE_DFU_MODE
     case String_DFU_Mode: {
         static const uint8_t str[] = "(String_DFU_Mode)";
         desc_string_copy(desc, str, sizeof(str) - 1);
         break;
     }
+#endif
     default:
         // dbg_puts("Unknown string descriptor");
         return 0;
@@ -259,15 +285,9 @@ static const desc_device_t desc_device ALIGNED(4) = {
     .bLength = sizeof(desc_device_t),
     .bDescriptorType = DESC_TYPE_DEVICE,
     .bcdUSB = 0x0200,
-#if USB_ALT_IF != USB_ALT_IF_NONE
     .bDeviceClass = 0xef,       // Miscellaneous Device
     .bDeviceSubClass = 2,
     .bDeviceProtocol = 1,       // Interface Association
-#else
-    .bDeviceClass = 0xfe,       // Application Specific
-    .bDeviceSubClass = 0x01,    // Device Firmware Upgrade
-    .bDeviceProtocol = 0x01,    // Runtime
-#endif
     .bMaxPacketSize0 = 64,
     .idVendor = 0x0483,         // STMicroelectronics
     .idProduct = 0x5750,
@@ -282,15 +302,9 @@ static const desc_device_qualifier_t desc_device_qualifier ALIGNED(4) = {
     .bLength = sizeof(desc_device_qualifier_t),
     .bDescriptorType = DESC_TYPE_DEVICE_QUALIFIER,
     .bcdUSB = 0x0200,
-#if USB_ALT_IF != USB_ALT_IF_NONE
     .bDeviceClass = 0xef,       // Miscellaneous Device
     .bDeviceSubClass = 2,
     .bDeviceProtocol = 1,       // Interface Association
-#else
-    .bDeviceClass = 0xfe,       // Application Specific
-    .bDeviceSubClass = 0x01,    // Device Firmware Upgrade
-    .bDeviceProtocol = 0x01,    // Runtime
-#endif
     .bMaxPacketSize0 = 64,
     .bNumConfigurations = 1,
     .bReserved = 0,
@@ -299,14 +313,15 @@ static const desc_device_qualifier_t desc_device_qualifier ALIGNED(4) = {
 static const struct PACKED {
     desc_configuration_t configuration;
 
-#if USB_ALT_IF == USB_ALT_IF_HID
+#if USB_INTERFACE_HID
     struct PACKED {
         desc_interface_t interface;
         desc_hid_t hid;
         desc_endpoint_t endpoint;
     } hid;
+#endif
 
-#elif USB_ALT_IF == USB_ALT_IF_CDC
+#if USB_INTERFACE_CDC
     struct PACKED {
         desc_interface_association_t iassoc;
         struct PACKED {
@@ -320,8 +335,17 @@ static const struct PACKED {
             desc_endpoint_t endpoint_in;
         } data;
     } cdc;
+#endif
 
-#else   // USB_ALT_IF
+#if USB_INTERFACE_CMSIS_DAP
+    struct PACKED {
+        desc_interface_t interface;
+        desc_endpoint_t endpoint_out;
+        desc_endpoint_t endpoint_in;
+    } cmsis_dap;
+#endif
+
+#if USB_INTERFACE_DFU_RT
     struct PACKED {
         desc_interface_t interface;
         desc_dfu_rt_functional_t functional;
@@ -339,7 +363,7 @@ static const struct PACKED {
         .bMaxPower = 100 / 2,
     },
 
-#if USB_ALT_IF == USB_ALT_IF_HID
+#if USB_INTERFACE_HID
     .hid = {
         .interface = {
             .bLength = sizeof(desc_interface_t),
@@ -362,8 +386,9 @@ static const struct PACKED {
             .bInterval = 10,            // 10ms polling interval
         },
     },
+#endif
 
-#elif USB_ALT_IF == USB_ALT_IF_CDC
+#if USB_INTERFACE_CDC
     .cdc = {
         .iassoc = {
             .bLength = sizeof(desc_interface_association_t),
@@ -427,8 +452,41 @@ static const struct PACKED {
             },
         },
     },
+#endif
 
-#else   // USB_ALT_IF
+#if USB_INTERFACE_CMSIS_DAP
+    .cmsis_dap = {
+        .interface = {
+            .bLength = sizeof(desc_interface_t),
+            .bDescriptorType = DESC_TYPE_INTERFACE,
+            .bInterfaceNumber = UsbInterfaceCmsisDap,
+            .bAlternateSetting = 0,
+            .bNumEndpoints = 2,
+            .bInterfaceClass = 0xff,    // Vendor specific
+            .bInterfaceSubClass = 0,
+            .bInterfaceProtocol = 0,
+            .iInterface = String_CMSIS_DAP,
+        },
+        .endpoint_out = {
+            .bLength = sizeof(desc_endpoint_t),
+            .bDescriptorType = DESC_TYPE_ENDPOINT,
+            .bEndpointAddress = 0x00 | UsbEpOutCmsisDap,
+            .bmAttributes = 0b10,       // Bulk
+            .wMaxPacketSize = 64,
+            .bInterval = 0,
+        },
+        .endpoint_in = {
+            .bLength = sizeof(desc_endpoint_t),
+            .bDescriptorType = DESC_TYPE_ENDPOINT,
+            .bEndpointAddress = 0x80 | UsbEpInCmsisDap,
+            .bmAttributes = 0b10,       // Bulk
+            .wMaxPacketSize = 64,
+            .bInterval = 0,
+        },
+    },
+#endif
+
+#if USB_INTERFACE_DFU_RT
     .dfu_rt = {
         .interface = {
             .bLength = sizeof(desc_interface_t),

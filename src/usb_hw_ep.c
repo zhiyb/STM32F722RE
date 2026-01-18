@@ -5,6 +5,7 @@
 #include "usb.h"
 #include "usb_hw.h"
 #include "usb_internal.h"
+#include "usb_cmsis_dap.h"
 
 static uint8_t usb_hw_ep_fifo_alloc(usb_if_t usb_if, uint32_t size)
 {
@@ -50,29 +51,58 @@ void usb_hw_ep_init(usb_if_t usb_if)
 
     hw_dev->DAINTMSK = 0;
     uint32_t daintmsk = 0;
+    USB_OTG_INEndpointTypeDef *hw_ep_in;
+    USB_OTG_OUTEndpointTypeDef *hw_ep_out;
 
-    // IN endpoint 0
+    // IN CTRL endpoint 0
     uint32_t fifo = usb_hw_ep_fifo_alloc(usb_if, 64 * 2);
-    USB_OTG_INEndpointTypeDef *hw_ep_in = HW_EP_IN(hw->base, 0);
+    hw_ep_in = HW_EP_IN(hw->base, 0);
     uint32_t epsize = usb_if == UsbIfHs ? 64 : 0;
-    usb->ep[0].in.max_size = 64;
+    usb->ep.in[0].max_size = 64;
     // uint32_t epdis = hw_ep_in->DIEPCTL & USB_OTG_DIEPCTL_EPENA_Msk ? USB_OTG_DIEPCTL_EPDIS_Msk : 0;
     hw_ep_in->DIEPCTL = (fifo << USB_OTG_DIEPCTL_TXFNUM_Pos) | (epsize << USB_OTG_DIEPCTL_MPSIZ_Pos);
     daintmsk |= 1 << (USB_OTG_DAINTMSK_IEPM_Pos + 0);
 
-    // OUT endpoint 0
-    usb->ep[0].out.max_size = 64;
+    // OUT CTRL endpoint 0
+    usb->ep.out[0].max_size = 64;
 #if 1
     // We cannot disable/reset EP0, but reinit anyway
     usb_ep0_init(usb_if);
 #else
-    USB_OTG_OUTEndpointTypeDef *hw_ep_out = HW_EP_OUT(hw->base, 0);
+    hw_ep_out = HW_EP_OUT(hw->base, 0);
     // epdis = hw_ep_out->DOEPCTL & USB_OTG_DOEPCTL_EPENA_Msk ? USB_OTG_DOEPCTL_EPDIS_Msk : 0;
     // If EP0 is already enabled, we cannot disable it, so cannot re-init
     if (!(hw_ep_out->DOEPCTL & USB_OTG_DOEPCTL_EPENA_Msk))
         usb_ep0_init(usb_if);
 #endif
     daintmsk |= 1 << (USB_OTG_DAINTMSK_OEPM_Pos + 0);
+
+#if USB_INTERFACE_CMSIS_DAP
+    // The USB defines the allowable maximum bulk data payload sizes to be only 8, 16,
+    // 32, or 64 bytes for full-speed endpoints and 512 bytes for high-speed endpoints
+    epsize = usb_if == usb_if == UsbIfHs ? 512 : 64;
+
+    // IN BULK endpoint
+    fifo = usb_hw_ep_fifo_alloc(usb_if, 2 * epsize);
+    usb->ep.in[UsbEpInCmsisDap].max_size = epsize;
+    hw_ep_in = HW_EP_IN(hw->base, UsbEpInCmsisDap);
+    hw_ep_in->DIEPCTL = (fifo << USB_OTG_DIEPCTL_TXFNUM_Pos) |
+        (0b10u << USB_OTG_DIEPCTL_EPTYP_Pos) |
+        (epsize << USB_OTG_DIEPCTL_MPSIZ_Pos) |
+        USB_OTG_DIEPCTL_USBAEP_Msk | USB_OTG_DIEPCTL_SNAK_Msk;
+    daintmsk |= 1 << (USB_OTG_DAINTMSK_IEPM_Pos + UsbEpInCmsisDap);
+
+    // OUT BULK endpoint
+    usb->ep.out[UsbEpOutCmsisDap].max_size = epsize;
+    hw_ep_out = HW_EP_OUT(hw->base, UsbEpOutCmsisDap);
+    hw_ep_out->DOEPCTL = (0b10u << USB_OTG_DOEPCTL_EPTYP_Pos) |
+        (epsize << USB_OTG_DOEPCTL_MPSIZ_Pos) |
+        (0b10u << USB_OTG_DOEPCTL_EPTYP_Pos) |
+        USB_OTG_DOEPCTL_USBAEP_Msk | USB_OTG_DOEPCTL_SNAK_Msk;
+    daintmsk |= 1 << (USB_OTG_DAINTMSK_OEPM_Pos + UsbEpOutCmsisDap);
+
+    usb_cmsis_dap_ep_init(usb_if);
+#endif
 
     // Interrupt and event masks
     hw_dev->DAINTMSK = daintmsk;
@@ -86,19 +116,19 @@ void usb_hw_ep_init(usb_if_t usb_if)
 void usb_hw_ep_out(usb_if_t usb_if, uint32_t ep, void *data, uint32_t setup, uint32_t pkt, uint32_t len)
 {
     usb_t *usb = &usb_ifs[usb_if];
-    uint32_t max_len = usb->ep[ep].out.max_size;
-    if (usb->ep[ep].out.pkts != 0)
-        PANIC("EP not idle");
+    uint32_t max_len = usb->ep.out[ep].max_size;
+    if (usb->ep.out[ep].pkts != 0)
+        DBG_BKPT("EP not idle");
 
     if (usb_hw_ifs[usb_if].use_dma) {
         // DMA will write, so invalidate cache
         SCB_InvalidateDCache_by_Addr(data, len);
     }
 
-    usb->ep[ep].out.p = data;
-    usb->ep[ep].out.offset = 0;
-    usb->ep[ep].out.len = len;
-    usb->ep[ep].out.pkts = (len + max_len - 1) / max_len;
+    usb->ep.out[ep].p = data;
+    usb->ep.out[ep].offset = 0;
+    usb->ep.out[ep].len = len;
+    usb->ep.out[ep].pkts = (len + max_len - 1) / max_len;
     log_push(LogUSB_Out, len);
     usb_hw_ep_out_continue(usb_if, ep, setup, pkt);
 }
@@ -109,24 +139,24 @@ bool usb_hw_ep_out_continue(usb_if_t usb_if, uint32_t ep, uint32_t setup, uint32
     USB_OTG_OUTEndpointTypeDef *hw_ep_out = HW_EP_OUT(hw->base, ep);
     // Endpoint 0 does not seem to clear EPENA after OUT transfer completion?
     if (ep != 0 && (hw_ep_out->DOEPCTL & USB_OTG_DOEPCTL_EPENA_Msk))
-        PANIC("EP not idle");
+        DBG_BKPT("EP not idle");
 
     usb_t *usb = &usb_ifs[usb_if];
-    if (!setup && !usb->ep[ep].out.pkts)
+    if (!setup && !usb->ep.out[ep].pkts)
         return false;
     if (pkt) {
-        pkt = MIN(pkt, usb->ep[ep].out.pkts);
-        usb->ep[ep].out.pkts -= pkt;
+        pkt = MIN(pkt, usb->ep.out[ep].pkts);
+        usb->ep.out[ep].pkts -= pkt;
     }
 
-    uint32_t max_len = usb->ep[ep].out.max_size;
-    uint32_t pkt_len = usb->ep[ep].out.len - usb->ep[ep].out.offset;
+    uint32_t max_len = usb->ep.out[ep].max_size;
+    uint32_t pkt_len = usb->ep.out[ep].len - usb->ep.out[ep].offset;
     pkt_len = pkt_len >= max_len ? max_len : pkt_len;
     log_push(LogUSB_OutContinue, pkt_len);
 
     if (usb_hw_ifs[usb_if].use_dma) {
-        hw_ep_out->DOEPDMA = (uint32_t)usb->ep[ep].out.p + usb->ep[ep].out.offset;
-        usb->ep[ep].out.offset += pkt_len;
+        hw_ep_out->DOEPDMA = (uint32_t)usb->ep.out[ep].p + usb->ep.out[ep].offset;
+        usb->ep.out[ep].last_len = pkt_len;
     }
 
     hw_ep_out->DOEPTSIZ = (setup << USB_OTG_DOEPTSIZ_STUPCNT_Pos) | (pkt << USB_OTG_DOEPTSIZ_PKTCNT_Pos) |
@@ -139,18 +169,19 @@ bool usb_hw_ep_out_continue(usb_if_t usb_if, uint32_t ep, uint32_t setup, uint32
 void usb_hw_ep_in(usb_if_t usb_if, uint8_t ep, const void *data, uint32_t len, bool short_data)
 {
     usb_t *usb = &usb_ifs[usb_if];
-    uint32_t max_len = usb->ep[ep].in.max_size;
-    if (usb->ep[ep].in.pkts != 0)
-        PANIC("EP not idle");
+    uint32_t max_len = usb->ep.in[ep].max_size;
+    if (usb->ep.in[ep].pkts != 0)
+        DBG_BKPT("EP not idle");
 
     if (usb_hw_ifs[usb_if].use_dma) {
         // DMA will read, so flush cache
         SCB_CleanDCache_by_Addr(data, len);
     }
 
-    usb->ep[ep].in.p = data;
-    usb->ep[ep].in.len = len;
-    usb->ep[ep].in.pkts = (len + max_len - (short_data ? 0 : 1)) / max_len;
+    usb->ep.in[ep].p = data;
+    usb->ep.in[ep].offset = 0;
+    usb->ep.in[ep].len = len;
+    usb->ep.in[ep].pkts = (len + max_len - (short_data ? 0 : 1)) / max_len;
     log_push(LogUSB_In, len);
     usb_hw_ep_in_continue(usb_if, ep);
 }
@@ -160,22 +191,22 @@ bool usb_hw_ep_in_continue(usb_if_t usb_if, uint8_t ep)
     const usb_hw_info_t *hw = &usb_hw_ifs[usb_if];
     USB_OTG_INEndpointTypeDef *hw_ep_in = HW_EP_IN(hw->base, ep);
     if (hw_ep_in->DIEPCTL & USB_OTG_DIEPCTL_EPENA_Msk)
-        PANIC("EP not idle");
+        DBG_BKPT("EP not idle");
 
     usb_t *usb = &usb_ifs[usb_if];
-    if (!usb->ep[ep].in.pkts)
+    if (!usb->ep.in[ep].pkts)
         return false;
-    usb->ep[ep].in.pkts -= 1;
+    usb->ep.in[ep].pkts -= 1;
 
-    uint32_t max_len = usb->ep[ep].in.max_size;
-    uint32_t pkt_len = usb->ep[ep].in.len;
+    uint32_t max_len = usb->ep.in[ep].max_size;
+    uint32_t pkt_len = usb->ep.in[ep].len - usb->ep.in[ep].offset;
     pkt_len = pkt_len >= max_len ? max_len : pkt_len;
-    usb->ep[ep].in.len -= pkt_len;
+    usb->ep.in[ep].offset += pkt_len;
     log_push(LogUSB_InContinue, pkt_len);
 
     if (usb_hw_ifs[usb_if].use_dma) {
-        hw_ep_in->DIEPDMA = (uint32_t)usb->ep[ep].in.p;
-        usb->ep[ep].in.p += pkt_len;
+        hw_ep_in->DIEPDMA = (uint32_t)usb->ep.in[ep].p;
+        usb->ep.in[ep].p += pkt_len;
     }
 
     hw_ep_in->DIEPTSIZ = (1 << USB_OTG_DIEPTSIZ_PKTCNT_Pos) | (pkt_len << USB_OTG_DIEPTSIZ_XFRSIZ_Pos);
@@ -184,8 +215,8 @@ bool usb_hw_ep_in_continue(usb_if_t usb_if, uint8_t ep)
         USB_OTG_DIEPCTL_EPENA_Msk | USB_OTG_DIEPCTL_USBAEP_Msk;
 
     if (!usb_hw_ifs[usb_if].use_dma) {
-        uint32_t *p = usb->ep[ep].in.p;
-        usb->ep[ep].in.p += pkt_len;
+        uint32_t *p = usb->ep.in[ep].p;
+        usb->ep.in[ep].p += pkt_len;
         for (uint32_t i = 0; i < (pkt_len + 3) / 4; i++)
             *HW_EP_FIFO(hw->base, ep) = *p++;
     }
@@ -197,7 +228,7 @@ void usb_hw_ep_in_stall(usb_if_t usb_if, uint8_t ep)
     const usb_hw_info_t *hw = &usb_hw_ifs[usb_if];
     USB_OTG_INEndpointTypeDef *hw_ep_in = HW_EP_IN(hw->base, ep);
     if (hw_ep_in->DIEPCTL & USB_OTG_DIEPCTL_EPENA_Msk)
-        PANIC("EP not idle");
+        DBG_BKPT("EP not idle");
     hw_ep_in->DIEPCTL = ((hw_ep_in->DIEPCTL) & (USB_OTG_DIEPCTL_TXFNUM_Msk | USB_OTG_DIEPCTL_MPSIZ_Msk |
         USB_OTG_DIEPCTL_EPTYP_Msk)) | USB_OTG_DIEPCTL_STALL_Msk | USB_OTG_DIEPCTL_USBAEP_Msk;
 }

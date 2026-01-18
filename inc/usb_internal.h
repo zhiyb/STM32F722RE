@@ -22,7 +22,7 @@ typedef struct usb_hw_info_t {
     bool use_dma;
 } usb_hw_info_t;
 
-extern const usb_hw_info_t usb_hw_ifs[NumUsbIfs];
+extern const usb_hw_info_t usb_hw_ifs[UsbNumIfs];
 
 typedef struct usb_t {
     struct {
@@ -39,14 +39,15 @@ typedef struct usb_t {
             uint32_t pkts;
             uint16_t last_len;
             uint16_t max_size;
-        } out;
+        } out[UsbNumOutEndpoints];
         struct {
             void *p;
             uint32_t len;
+            uint32_t offset;
             uint32_t pkts;
             uint16_t max_size;
-        } in;
-    } ep[UsbNumEndpoints];
+        } in[UsbNumInEndpoints];
+    } ep;
     struct {
         // Per the USB 2.0 specification, normally, during a SETUP packet error,
         // a host does not send more than three back-to-back SETUP packets to the same endpoint
@@ -62,7 +63,7 @@ typedef struct usb_t {
     } ev;
 } usb_t;
 
-extern usb_t usb_ifs[NumUsbIfs];
+extern usb_t usb_ifs[UsbNumIfs];
 
 void usb_hw_init(usb_if_t usb_if);
 void usb_hw_process(usb_if_t usb_if);
@@ -76,6 +77,7 @@ void usb_hw_ep_out(usb_if_t usb_if, uint32_t epnum, void *data, uint32_t setup, 
 bool usb_hw_ep_out_continue(usb_if_t usb_if, uint32_t ep, uint32_t setup, uint32_t pkt);
 void usb_hw_ep_in(usb_if_t usb_if, uint8_t ep, const void *data, uint32_t len, bool short_data);
 bool usb_hw_ep_in_continue(usb_if_t usb_if, uint8_t ep);
+void usb_hw_ep_in_stall(usb_if_t usb_if, uint8_t ep);
 
 void usb_ep0_init(usb_if_t usb_if);
 void usb_ep0_setup(usb_if_t usb_if, bool buf_valid);

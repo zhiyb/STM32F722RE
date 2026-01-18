@@ -27,6 +27,8 @@ pub fn build(b: *std.Build) void {
     // const target = b.standardTargetOptions(.{});
     var features = std.Target.Cpu.Feature.Set.empty;
     features.addFeature(@intFromEnum(std.Target.arm.Feature.fp_armv8d16sp));
+    // Enforce aligned access, certain RAM regions do not support unaligned access
+    features.addFeature(@intFromEnum(std.Target.arm.Feature.strict_align));
 
     const target = b.resolveTargetQuery(.{
         .cpu_arch = .thumb,
@@ -125,10 +127,16 @@ pub fn build(b: *std.Build) void {
             "src/usb_ep0_setup.c",
             "src/usb_desc.c",
             "src/usb_dfu_rt.c",
+
             // "src/dma.c",
             // "src/uart.c",
             // "src/usb_hid.c",
             // "src/usb_cdc.c",
+
+            "src/usb_cmsis_dap.c",
+            "cmsis-dap/src/DAP.c",
+            "cmsis-dap/src/JTAG_DP.c",
+            "cmsis-dap/src/SW_DP.c",
         }),
         .flags = &(target_flags ++ .{
             "-DENABLE_DEBUGGING",
@@ -136,6 +144,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    fw_elf.addIncludePath(b.path("cmsis-dap/inc"));
     fw_elf.setLinkerScript(b.path("STM32F722RE_FW_ITCM.ld"));
 
     // USB bootloader

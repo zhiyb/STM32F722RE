@@ -109,6 +109,14 @@ SECTIONS
     __bss_end = .;
   } >RAM
 
+  . = ALIGN(4);
+  .dmaram (NOLOAD) :
+  {
+    *(.dmaram)
+    *(.dmaram*)
+    . = ALIGN(4);
+  } >DMARAM
+
 
   /* Remove information from the standard libraries */
   /DISCARD/ :

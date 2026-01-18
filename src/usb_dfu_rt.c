@@ -35,7 +35,7 @@ const void *usb_dfu_setup(setup_t *setup, void *data, uint32_t len)
     case REQ_CLASS_DFU_DETACH:
         // bmRequestType == 0x21
         // usb_dfu.status.bState = UsbDfuState_appDETACH;
-        for (uint32_t usb_if = 0; usb_if < NumUsbIfs; usb_if++)
+        for (uint32_t usb_if = 0; usb_if < UsbNumIfs; usb_if++)
             usb_connect(usb_if, false);
         bootloader_run_usb_dfu();
         return 0;

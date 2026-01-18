@@ -4,51 +4,64 @@
 #include <stdint.h>
 #include "macros.h"
 
-#define USB_ALT_IF_NONE 0
-#define USB_ALT_IF_HID  1
-#define USB_ALT_IF_CDC  2
-#define USB_ALT_IF      USB_ALT_IF_NONE
+#ifdef BOOTLOADER
+#define USB_INTERFACE_HID       0
+#define USB_INTERFACE_CDC       0
+#define USB_INTERFACE_CMSIS_DAP 0
+#define USB_INTERFACE_DFU_RT    0
+#define USB_INTERFACE_DFU_MODE  1
+#else
+#define USB_INTERFACE_HID       0
+#define USB_INTERFACE_CDC       0
+#define USB_INTERFACE_CMSIS_DAP 1
+#define USB_INTERFACE_DFU_RT    1
+#define USB_INTERFACE_DFU_MODE  0
+#endif
 
 typedef enum {
     UsbIfFs = 0,
     UsbIfHs,
-    NumUsbIfs,
+    UsbNumIfs,
 } usb_if_t;
 
 typedef enum {
-#ifdef BOOTLOADER
-    UsbInterfaceDfuMode = 0,
-#else
-#if USB_ALT_IF == USB_ALT_IF_HID
+#if USB_INTERFACE_HID
     UsbInterfaceHid,
 #endif
-#if USB_ALT_IF == USB_ALT_IF_CDC
+#if USB_INTERFACE_CDC
     UsbInterfaceCDCComm,
     UsbInterfaceCDCData,
 #endif
+#if USB_INTERFACE_CMSIS_DAP
+    UsbInterfaceCmsisDap,
+#endif
+#if USB_INTERFACE_DFU_RT
     UsbInterfaceDfuRT,
+#endif
+#if USB_INTERFACE_DFU_MODE
+    UsbInterfaceDfuMode = 0,
 #endif
     UsbNumInterfaces
 } usb_interface_id_t;
 
 typedef enum {
-#ifdef BOOTLOADER
-    UsbEp0Ctrl = 0,
-    UsbNumEndpoints = 1
-#else
-    UsbEp0Ctrl = 0,
-    // UsbEpBtHciEvents = 1,
-    // UsbEpBtACLData = 2,
-    // UsbEpBtACLDataIn = 6,   // Double-buffering channel
-    // UsbEpBtVoice = 3,
-    // UsbEpBtVoiceIn = 7,     // Double-buffering channel
-    // // Alternative interfaces
+    UsbEpIn0Ctrl = 0,
+#if USB_INTERFACE_CMSIS_DAP
+    UsbEpInCmsisDap,
+#endif
     // UsbEpHid = 4,
     // UsbEpCDCComm = 4,
     // UsbEpCDCData = 5,
-    UsbNumEndpoints = 1
+    UsbNumInEndpoints
+} usb_endpoint_in_t;
+
+typedef enum {
+    UsbEpOut0Ctrl = 0,
+#if USB_INTERFACE_CMSIS_DAP
+    UsbEpOutCmsisDap,
 #endif
-} usb_endpoint_t;
+    UsbNumOutEndpoints
+} usb_endpoint_out_t;
 
 typedef enum {
     UsbEpDisabled = 0b00,
@@ -85,9 +98,6 @@ typedef struct PACKED {
 void usb_init(usb_if_t usb_if);
 void usb_connect(usb_if_t usb_if, bool enable);
 void usb_process(usb_if_t usb_if);
-
-void usb_hw_ep_in(usb_if_t usb_if, uint8_t ep, const void *data, uint32_t len, bool status_out);
-void usb_hw_ep_in_stall(usb_if_t usb_if, uint8_t ep);
 
 // const void *usb_hid_setup(setup_t *setup);
 // void usb_hid_process(uint32_t now_ms);

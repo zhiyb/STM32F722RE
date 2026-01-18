@@ -1,7 +1,7 @@
 #include "usb.h"
 #include "usb_internal.h"
 
-usb_t usb_ifs[NumUsbIfs];
+usb_t usb_ifs[UsbNumIfs];
 
 void usb_init(usb_if_t usb_if)
 {

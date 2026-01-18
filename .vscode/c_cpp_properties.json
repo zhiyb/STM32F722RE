@@ -5,7 +5,8 @@
             "includePath": [
                 "${workspaceFolder}/cmsis",
                 "${workspaceFolder}/hal",
-                "${workspaceFolder}/inc"
+                "${workspaceFolder}/inc",
+                "${workspaceFolder}/cmsis-dap/inc",
             ],
             "compilerPath": "/usr/bin/clang",
             "cStandard": "c17",
@@ -13,7 +14,7 @@
             "intelliSenseMode": "linux-clang-x64",
             "defines": [
                 "STM32F722xx",
-                "BOOTLOADER"
+                // "BOOTLOADER",
             ]
         }
     ],
