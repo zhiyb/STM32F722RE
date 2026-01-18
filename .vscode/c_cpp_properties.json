@@ -15,13 +15,15 @@
             "defines": [
                 "STM32F722xx",
 
-                "BOOTLOADER",
-                "BOOTLOADER_USB",
-
                 "ENABLE_USB_FS",
                 "ENABLE_USB_HS",
                 // "ENABLE_USB_HS_MODE_FS",
                 "ENABLE_USB_HS_MODE_ULPI",
+
+                // "BOOTLOADER",
+                // "BOOTLOADER_USB",
+
+                "USB_INTERFACE_CMSIS_DAP",
 
                 "ENABLE_DEBUGGING",
                 "ENABLE_LOGGING",

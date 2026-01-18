@@ -141,7 +141,7 @@ typedef enum {
     NumStrings,
 } desc_string_index_t;
 
-static const uint8_t *desc_string(uint8_t *desc_buf, uint8_t index, uint16_t *len)
+static const uint8_t *desc_string(uint32_t usb_if, uint8_t *desc_buf, uint8_t index, uint16_t *len)
 {
     desc_string_lang_t *desc = (desc_string_lang_t *)desc_buf;
     switch ((desc_string_index_t)index) {
@@ -171,14 +171,17 @@ static const uint8_t *desc_string(uint8_t *desc_buf, uint8_t index, uint16_t *le
         break;
     }
     case String_iSerialNumber: {
-        uint8_t str[96 / 4 + 1];
+        uint8_t str[64];
+        uint8_t *pstr = &str[0];
         uint32_t *uid = (uint32_t *)UID_BASE;
         for (uint32_t i = 0; i < 96 / 4; i++) {
             uint8_t v = ((uid[i / 8] >> ((i % 8) / 2)) >> (i % 2 ? 4 : 0)) & 0x0f;
-            str[i] = v >= 10 ? v - 10 + 'a' : v + '0';
+            *pstr++ = v >= 10 ? v - 10 + 'a' : v + '0';
         }
-        str[96 / 4] = '\0';
-        desc_string_copy(desc, str, sizeof(str) - 1);
+        *pstr++ = '_';
+        *pstr++ = '0' + usb_if;
+        *pstr = '\0';
+        desc_string_copy(desc, str, pstr - str);
         break;
     }
 #if USB_INTERFACE_CDC
@@ -533,7 +536,7 @@ const uint8_t *usb_desc_get(usb_if_t usb_if, uint8_t *desc_buf, uint8_t type, ui
         // Not a high speed device or not supported
         return 0;
     case DESC_TYPE_STRING:
-        return desc_string(desc_buf, index, len);
+        return desc_string(usb_if, desc_buf, index, len);
     case DESC_TYPE_OTG:
     case DESC_TYPE_DEBUG:
     case DESC_TYPE_INTERFACE_ASSOCIATION:

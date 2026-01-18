@@ -83,7 +83,7 @@ void usb_hw_ep_init(usb_if_t usb_if)
 #if USB_INTERFACE_CMSIS_DAP
     // The USB defines the allowable maximum bulk data payload sizes to be only 8, 16,
     // 32, or 64 bytes for full-speed endpoints and 512 bytes for high-speed endpoints
-    epsize = usb_if == usb_if == UsbIfHs ? 512 : 64;
+    epsize = usb_if == UsbIfHs ? 512 : 64;
 
     // IN BULK endpoint
     fifo = usb_hw_ep_fifo_alloc(usb_if, 2 * epsize);
