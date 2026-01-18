@@ -88,7 +88,7 @@ This information includes:
 /// This configuration settings is used to optimize the communication performance with the
 /// debugger and depends on the USB peripheral. Typical vales are 64 for Full-speed USB HID or WinUSB,
 /// 1024 for High-speed USB HID and 512 for High-speed USB WinUSB.
-extern uint16_t dap_packet_size;
+extern uint16_t dap_packet_size;    // Dynamic packet size based on USB interface speed
 #define DAP_PACKET_SIZE         (dap_packet_size) ///< Specifies Packet Size in bytes.
 
 /// Maximum Package Buffers for Command and Response data.
@@ -316,7 +316,18 @@ Configures the DAP Hardware I/O pins for Serial Wire Debug (SWD) mode:
  - TDI, nTRST to HighZ mode (pins are unused in SWD mode).
 */
 __STATIC_INLINE void PORT_SWD_SETUP (void) {
-  ;
+  // 01: General purpose output mode
+  GPIOC->MODER = (GPIOC->MODER & ~(GPIO_MODER_MODER14_Msk | GPIO_MODER_MODER15_Msk)) |
+    (0b01ul << GPIO_MODER_MODER14_Pos) | (0b01ul << GPIO_MODER_MODER15_Pos);
+  // 0: Output push-pull
+  GPIOC->OTYPER = GPIOC->OTYPER & ~(GPIO_OTYPER_OT14_Msk | GPIO_OTYPER_OT15_Msk);
+  // 01: Medium speed
+  GPIOC->OSPEEDR = (GPIOC->OSPEEDR & ~(GPIO_OSPEEDR_OSPEEDR14_Msk | GPIO_OSPEEDR_OSPEEDR15_Msk)) |
+    (0b01ul << GPIO_OSPEEDR_OSPEEDR14_Pos) | (0b01ul << GPIO_OSPEEDR_OSPEEDR15_Pos);
+  // 00: No pull-up, pull-down
+  GPIOC->PUPDR = GPIOC->PUPDR & ~(GPIO_PUPDR_PUPDR14_Msk | GPIO_PUPDR_PUPDR15_Msk);
+  // Output high
+  GPIOC->ODR = GPIOC->ODR | (GPIO_ODR_OD14_Msk | GPIO_ODR_OD15_Msk);
 }
 
 /** Disable JTAG/SWD I/O Pins.
@@ -324,7 +335,11 @@ Disables the DAP Hardware I/O pins which configures:
  - TCK/SWCLK, TMS/SWDIO, TDI, TDO, nTRST, nRESET to High-Z mode.
 */
 __STATIC_INLINE void PORT_OFF (void) {
-  ;
+  // 11: Analog mode
+  GPIOC->MODER = (GPIOC->MODER & ~(GPIO_MODER_MODER14_Msk | GPIO_MODER_MODER15_Msk)) |
+    (0b11ul << GPIO_MODER_MODER14_Pos) | (0b11ul << GPIO_MODER_MODER15_Pos);
+  // 00: No pull-up, pull-down
+  GPIOC->PUPDR = GPIOC->PUPDR & ~(GPIO_PUPDR_PUPDR14_Msk | GPIO_PUPDR_PUPDR15_Msk);
 }
 
 
@@ -334,21 +349,21 @@ __STATIC_INLINE void PORT_OFF (void) {
 \return Current status of the SWCLK/TCK DAP hardware I/O pin.
 */
 __STATIC_FORCEINLINE uint32_t PIN_SWCLK_TCK_IN  (void) {
-  return (0U);
+  return !!(GPIOC->IDR & GPIO_IDR_ID15_Msk);
 }
 
 /** SWCLK/TCK I/O pin: Set Output to High.
 Set the SWCLK/TCK DAP hardware I/O pin to high level.
 */
 __STATIC_FORCEINLINE void     PIN_SWCLK_TCK_SET (void) {
-  ;
+  GPIOC->BSRR = GPIO_BSRR_BS15_Msk;
 }
 
 /** SWCLK/TCK I/O pin: Set Output to Low.
 Set the SWCLK/TCK DAP hardware I/O pin to low level.
 */
 __STATIC_FORCEINLINE void     PIN_SWCLK_TCK_CLR (void) {
-  ;
+  GPIOC->BSRR = GPIO_BSRR_BR15_Msk;
 }
 
 
@@ -358,35 +373,35 @@ __STATIC_FORCEINLINE void     PIN_SWCLK_TCK_CLR (void) {
 \return Current status of the SWDIO/TMS DAP hardware I/O pin.
 */
 __STATIC_FORCEINLINE uint32_t PIN_SWDIO_TMS_IN  (void) {
-  return (0U);
+  return !!(GPIOC->IDR & GPIO_IDR_ID14_Msk);
 }
 
 /** SWDIO/TMS I/O pin: Set Output to High.
 Set the SWDIO/TMS DAP hardware I/O pin to high level.
 */
 __STATIC_FORCEINLINE void     PIN_SWDIO_TMS_SET (void) {
-  ;
+  GPIOC->BSRR = GPIO_BSRR_BS14_Msk;
 }
 
 /** SWDIO/TMS I/O pin: Set Output to Low.
 Set the SWDIO/TMS DAP hardware I/O pin to low level.
 */
 __STATIC_FORCEINLINE void     PIN_SWDIO_TMS_CLR (void) {
-  ;
+  GPIOC->BSRR = GPIO_BSRR_BR14_Msk;
 }
 
 /** SWDIO I/O pin: Get Input (used in SWD mode only).
 \return Current status of the SWDIO DAP hardware I/O pin.
 */
 __STATIC_FORCEINLINE uint32_t PIN_SWDIO_IN      (void) {
-  return (0U);
+  return !!(GPIOC->IDR & GPIO_IDR_ID14_Msk);
 }
 
 /** SWDIO I/O pin: Set Output (used in SWD mode only).
 \param bit Output value for the SWDIO DAP hardware I/O pin.
 */
 __STATIC_FORCEINLINE void     PIN_SWDIO_OUT     (uint32_t bit) {
-  ;
+  GPIOC->BSRR = (bit & 1) ? GPIO_BSRR_BS14_Msk : GPIO_BSRR_BR14_Msk;
 }
 
 /** SWDIO I/O pin: Switch to Output mode (used in SWD mode only).
@@ -394,7 +409,12 @@ Configure the SWDIO DAP hardware I/O pin to output mode. This function is
 called prior \ref PIN_SWDIO_OUT function calls.
 */
 __STATIC_FORCEINLINE void     PIN_SWDIO_OUT_ENABLE  (void) {
-  ;
+  // 01: General purpose output mode
+  GPIOC->MODER = (GPIOC->MODER & ~(GPIO_MODER_MODER14_Msk)) |
+    (0b01ul << GPIO_MODER_MODER14_Pos);
+  // 00: No pull-up, pull-down
+  GPIOC->PUPDR = GPIOC->PUPDR & ~(GPIO_PUPDR_PUPDR14_Msk) |
+    (0b00ul << GPIO_PUPDR_PUPDR14_Pos);
 }
 
 /** SWDIO I/O pin: Switch to Input mode (used in SWD mode only).
@@ -402,7 +422,14 @@ Configure the SWDIO DAP hardware I/O pin to input mode. This function is
 called prior \ref PIN_SWDIO_IN function calls.
 */
 __STATIC_FORCEINLINE void     PIN_SWDIO_OUT_DISABLE (void) {
-  ;
+  // 00: Input mode
+  GPIOC->MODER = (GPIOC->MODER & ~(GPIO_MODER_MODER14_Msk)) |
+    (0b00ul << GPIO_MODER_MODER14_Pos);
+  // 01: Pull-up
+  // 10: Pull-down
+  GPIOC->PUPDR = GPIOC->PUPDR & ~(GPIO_PUPDR_PUPDR14_Msk) |
+    (0b10ul << GPIO_PUPDR_PUPDR14_Pos);
+  // asm volatile ("bkpt 0");
 }
 
 
@@ -542,7 +569,7 @@ Status LEDs. In detail the operation of Hardware I/O and LED pins are enabled an
  - LED output pins are enabled and LEDs are turned off.
 */
 __STATIC_INLINE void DAP_SETUP (void) {
-  ;
+  PORT_OFF();
 }
 
 /** Reset Target Device with custom specific I/O pin or command sequence.

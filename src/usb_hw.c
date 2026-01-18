@@ -6,7 +6,10 @@
 #include "usb_hw.h"
 #include "usb_internal.h"
 #include "usb_dfu.h"
+
+#if USB_INTERFACE_CMSIS_DAP
 #include "usb_cmsis_dap.h"
+#endif
 
 const usb_hw_info_t usb_hw_ifs[UsbNumIfs] = {
     [UsbIfFs] = {

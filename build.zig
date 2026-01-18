@@ -133,7 +133,7 @@ pub fn build(b: *std.Build) void {
             // "src/usb_hid.c",
             // "src/usb_cdc.c",
 
-            "src/usb_cmsis_dap.c",
+            "cmsis-dap/src/usb_cmsis_dap.c",
             "cmsis-dap/src/DAP.c",
             "cmsis-dap/src/JTAG_DP.c",
             "cmsis-dap/src/SW_DP.c",

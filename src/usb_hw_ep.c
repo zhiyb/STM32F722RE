@@ -5,7 +5,10 @@
 #include "usb.h"
 #include "usb_hw.h"
 #include "usb_internal.h"
+
+#if USB_INTERFACE_CMSIS_DAP
 #include "usb_cmsis_dap.h"
+#endif
 
 static uint8_t usb_hw_ep_fifo_alloc(usb_if_t usb_if, uint32_t size)
 {

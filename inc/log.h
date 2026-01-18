@@ -32,6 +32,13 @@ typedef enum {
     LogFlash_INT,
 
     LogCmsisDap_Out,
+    LogCmsisDap_In,
+    LogCmsisDap_InEvent,
+    LogCmsisDap_Request,
+    LogCmsisDap_Response,
+    LogCmsisDap_SWCLK,
+    LogCmsisDap_SWDIO,
+    LogCmsisDap_SWDIO_TMS,
 } log_type_t;
 
 #ifdef ENABLE_LOGGING

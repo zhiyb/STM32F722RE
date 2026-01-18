@@ -77,6 +77,7 @@ void usb_cmsis_dap_ep_out(usb_if_t usb_if)
     uint32_t req_len = usb->ep.out[UsbEpOutCmsisDap].offset;
     uint8_t *req_buf = usb_out_buf(usb_if);
     fifo_push(&usb_cdap.req_fifo, req_buf, req_len);
+    log_push(LogCmsisDap_Out, req_len);
     cdap->ep_out_pending = false;
 
     uint32_t req_free = fifo_free(&usb_cdap.req_fifo);
@@ -91,10 +92,14 @@ void usb_cmsis_dap_ep_out(usb_if_t usb_if)
         // There is enough response buffer space to process a packet
         uint8_t req[DAP_PACKET_SIZE];
         uint8_t resp[DAP_PACKET_SIZE];
-        fifo_peek(&usb_cdap.req_fifo, req, DAP_PACKET_SIZE);
+        uint32_t req_valid = fifo_peek(&usb_cdap.req_fifo, req, DAP_PACKET_SIZE);
         uint32_t num = DAP_ExecuteCommand(req, resp);
         uint16_t processed_resp_len = num & 0xffff;
         uint16_t processed_req_len = (num >> 16) & 0xffff;
+        log_push(LogCmsisDap_Request, processed_req_len);
+        log_push(LogCmsisDap_Response, processed_resp_len);
+        if (processed_req_len > req_valid)
+            dbg_bkpt();
         fifo_drop(&usb_cdap.req_fifo, processed_req_len);
         fifo_push(&usb_cdap.resp_fifo, resp, processed_resp_len);
         if (!processed_req_len)
@@ -104,8 +109,9 @@ void usb_cmsis_dap_ep_out(usb_if_t usb_if)
     if (!cdap->ep_in_pending && fifo_avail(&usb_cdap.resp_fifo)) {
         // There is response data to transmit and IN endpoint is idling
         uint8_t *resp_buf = usb_in_buf(usb_if);
-        uint32_t resp_len = fifo_pop(&usb_cdap.resp_fifo, resp_buf, DAP_PACKET_SIZE);
+        uint32_t resp_len = fifo_peek(&usb_cdap.resp_fifo, resp_buf, DAP_PACKET_SIZE);
         cdap->ep_in_pending = true;
+        log_push(LogCmsisDap_In, resp_len);
         usb_hw_ep_in(usb_if, UsbEpInCmsisDap, resp_buf, resp_len, false);
     }
 }
@@ -123,8 +129,9 @@ void usb_cmsis_dap_ep_in(usb_if_t usb_if)
     if (fifo_avail(&usb_cdap.resp_fifo)) {
         // There is response data to transmit and IN endpoint is idling
         uint8_t *resp_buf = usb_in_buf(usb_if);
-        uint32_t resp_len = fifo_pop(&usb_cdap.resp_fifo, resp_buf, DAP_PACKET_SIZE);
+        uint32_t resp_len = fifo_peek(&usb_cdap.resp_fifo, resp_buf, DAP_PACKET_SIZE);
         cdap->ep_in_pending = true;
+        log_push(LogCmsisDap_In, resp_len);
         usb_hw_ep_in(usb_if, UsbEpInCmsisDap, resp_buf, resp_len, false);
     }
 
@@ -132,10 +139,14 @@ void usb_cmsis_dap_ep_in(usb_if_t usb_if)
         // There is enough response buffer space to process a packet
         uint8_t req[DAP_PACKET_SIZE];
         uint8_t resp[DAP_PACKET_SIZE];
-        fifo_peek(&usb_cdap.req_fifo, req, DAP_PACKET_SIZE);
+        uint32_t req_valid = fifo_peek(&usb_cdap.req_fifo, req, DAP_PACKET_SIZE);
         uint32_t num = DAP_ExecuteCommand(req, resp);
         uint16_t processed_resp_len = num & 0xffff;
         uint16_t processed_req_len = (num >> 16) & 0xffff;
+        log_push(LogCmsisDap_Request, processed_req_len);
+        log_push(LogCmsisDap_Response, processed_resp_len);
+        if (processed_req_len > req_valid)
+            dbg_bkpt();
         fifo_drop(&usb_cdap.req_fifo, processed_req_len);
         fifo_push(&usb_cdap.resp_fifo, resp, processed_resp_len);
         if (!processed_req_len)
